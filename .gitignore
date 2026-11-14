@@ -1,0 +1,9 @@
+# Rust build output
+/target/
+Cargo.lock.tmp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

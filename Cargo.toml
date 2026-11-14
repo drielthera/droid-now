@@ -1,0 +1,23 @@
+[package]
+name = "droidnow"
+version = "0.2.0"
+edition = "2021"
+description = "DroidNow — diagnostik perangkat Android dengan pemeriksaan terbatas untuk Xiaomi"
+license = "MIT"
+
+[dependencies]
+eframe = { version = "0.32.3", default-features = false, features = ["default_fonts", "glow", "x11"] }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
+wait-timeout = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+sha2 = "0.10"
+zip = { version = "9.0", default-features = false, features = ["deflate"] }
+webbrowser = "1"
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+codegen-units = 1
+strip = true
