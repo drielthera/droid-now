@@ -2,7 +2,7 @@
 name = "droidnow"
 version = "0.2.0"
 edition = "2021"
-description = "DroidNow — diagnostik perangkat Android dengan pemeriksaan terbatas untuk Xiaomi"
+description = "Diagnostik perangkat Android melalui ADB dan Fastboot"
 license = "MIT"
 
 [dependencies]
@@ -15,6 +15,7 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 sha2 = "0.10"
 zip = { version = "9.0", default-features = false, features = ["deflate"] }
 webbrowser = "1"
+process-wrap = { version = "10.0.1", default-features = false, features = ["std", "job-object", "process-group"] }
 
 [profile.release]
 opt-level = 2

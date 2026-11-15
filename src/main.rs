@@ -2,6 +2,7 @@
 
 mod app;
 mod core;
+mod process;
 mod safety;
 
 fn main() -> eframe::Result {

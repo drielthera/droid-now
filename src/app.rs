@@ -12,9 +12,9 @@ const LINE: Color32 = Color32::from_rgb(48, 53, 61);
 const TEXT: Color32 = Color32::from_rgb(232, 234, 239);
 const MUTED: Color32 = Color32::from_rgb(160, 166, 176);
 const GREEN: Color32 = Color32::from_rgb(73, 201, 177);
-const BLUE: Color32 = Color32::from_rgb(151, 177, 218);
 const AMBER: Color32 = Color32::from_rgb(225, 187, 112);
 const RED: Color32 = Color32::from_rgb(235, 127, 136);
+const CONTROL_EDGE: Color32 = Color32::from_rgb(120, 132, 148);
 
 #[derive(Clone, Copy)]
 enum Icon {
@@ -22,7 +22,6 @@ enum Icon {
     Activity,
     About,
     Help,
-    Settings,
     Scan,
     Device,
     Shield,
@@ -90,19 +89,6 @@ fn paint_icon(painter: &egui::Painter, kind: Icon, rect: egui::Rect, color: Colo
                 color,
             );
         }
-        Icon::Settings => {
-            let center = point(0.50, 0.50);
-            painter.circle_stroke(center, unit * 0.25, stroke);
-            painter.circle_stroke(center, unit * 0.09, stroke);
-            for index in 0..8 {
-                let angle = std::f32::consts::TAU * index as f32 / 8.0;
-                let direction = egui::vec2(angle.cos(), angle.sin());
-                line(
-                    center + direction * (unit * 0.30),
-                    center + direction * (unit * 0.42),
-                );
-            }
-        }
         Icon::Scan => {
             painter.circle_stroke(point(0.42, 0.42), unit * 0.25, stroke);
             line(point(0.60, 0.60), point(0.86, 0.86));
@@ -169,25 +155,6 @@ fn draw_icon_button(
     height: f32,
     primary: bool,
 ) -> egui::Response {
-    let sense = if enabled {
-        egui::Sense::click()
-    } else {
-        egui::Sense::hover()
-    };
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, height), sense);
-    let fill = if primary {
-        if response.hovered() {
-            Color32::from_rgb(91, 218, 192)
-        } else {
-            GREEN
-        }
-    } else if !enabled {
-        PANEL_DARK
-    } else if response.hovered() {
-        Color32::from_rgb(49, 55, 64)
-    } else {
-        Color32::from_rgb(38, 42, 49)
-    };
     let text_color = if primary {
         Color32::from_rgb(14, 35, 32)
     } else if enabled {
@@ -195,28 +162,22 @@ fn draw_icon_button(
     } else {
         MUTED
     };
-    ui.painter()
-        .rect_filled(rect, egui::CornerRadius::same(5), fill);
-    ui.painter().rect_stroke(
-        rect,
-        egui::CornerRadius::same(5),
-        Stroke::new(1.0_f32, LINE),
-        egui::StrokeKind::Inside,
-    );
+    let mut button = egui::Button::new(RichText::new(label).size(11.0).color(text_color))
+        .min_size(egui::vec2(width, height))
+        .corner_radius(egui::CornerRadius::same(5));
+    if primary {
+        button = button.fill(GREEN);
+    } else if !enabled {
+        button = button.fill(PANEL_DARK);
+    }
+    let response = ui.add_enabled(enabled, button);
     paint_icon(
         ui.painter(),
         kind,
         egui::Rect::from_center_size(
-            egui::pos2(rect.left() + 25.0, rect.center().y),
+            egui::pos2(response.rect.left() + 18.0, response.rect.center().y),
             egui::vec2(17.0, 17.0),
         ),
-        text_color,
-    );
-    ui.painter().text(
-        egui::pos2(rect.left() + 43.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        label,
-        FontId::proportional(11.0),
         text_color,
     );
     response
@@ -247,6 +208,8 @@ pub struct DroidNowApp {
     device_info: Option<(String, Result<String, String>)>,
     rom: Option<(PathBuf, RomInspection)>,
     rom_folder: String,
+    inspecting_rom: bool,
+    rom_error: Option<String>,
     log: Vec<String>,
     sender: Sender<UiMessage>,
     receiver: Receiver<UiMessage>,
@@ -270,6 +233,8 @@ impl DroidNowApp {
             device_info: None,
             rom: None,
             rom_folder: String::new(),
+            inspecting_rom: false,
+            rom_error: None,
             log: vec!["DroidNow siap. Sambungkan ponsel melalui kabel USB.".into()],
             sender,
             receiver,
@@ -350,6 +315,9 @@ impl DroidNowApp {
     }
 
     fn start_rom_inspection(&mut self, path: PathBuf, ctx: egui::Context) {
+        self.inspecting_rom = true;
+        self.rom = None;
+        self.rom_error = None;
         let sender = self.sender.clone();
         thread::spawn(move || {
             let result = core::inspect_rom_folder(&path);
@@ -419,17 +387,23 @@ impl DroidNowApp {
                     }
                     let _ = action;
                 }
-                UiMessage::Rom(path, result) => match result {
-                    Ok(inspection) => {
-                        self.log(format!(
-                            "Folder ROM selesai diperiksa: {} — {} berkas terkait.",
-                            path.display(),
-                            inspection.entries.len()
-                        ));
-                        self.rom = Some((path, inspection));
+                UiMessage::Rom(path, result) => {
+                    self.inspecting_rom = false;
+                    match result {
+                        Ok(inspection) => {
+                            self.log(format!(
+                                "Folder ROM selesai diperiksa: {}. Ditemukan {} berkas terkait.",
+                                path.display(),
+                                inspection.entries.len()
+                            ));
+                            self.rom = Some((path, inspection));
+                        }
+                        Err(error) => {
+                            self.rom_error = Some(error.clone());
+                            self.log(format!("Pemeriksaan folder gagal: {error}"));
+                        }
                     }
-                    Err(error) => self.log(format!("Folder ROM gagal diperiksa: {error}")),
-                },
+                }
                 UiMessage::ToolsInstalled(result) => {
                     self.installing_tools = false;
                     match result {
@@ -487,17 +461,21 @@ impl DroidNowApp {
 
     fn choose_rom_folder(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .set_title("Pilih folder ROM Fastboot Xiaomi yang sudah diekstrak")
+            .set_title("Pilih folder ROM hasil ekstrak")
             .pick_folder()
         {
             self.rom_folder = path.display().to_string();
+            self.rom = None;
+            self.rom_error = None;
         }
     }
 
     fn inspect_selected_rom(&mut self, ctx: &egui::Context) {
         let folder = self.rom_folder.trim();
         if folder.is_empty() {
-            self.log("Pilih folder ROM yang sudah diekstrak terlebih dahulu.");
+            let message = "Pilih folder ROM sebelum memulai pemeriksaan.".to_string();
+            self.rom_error = Some(message.clone());
+            self.log(message);
             return;
         }
         self.start_rom_inspection(PathBuf::from(folder), ctx.clone());
@@ -564,8 +542,8 @@ impl DroidNowApp {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if draw_icon_button(
                             ui,
-                            Icon::Settings,
-                            "Pengaturan",
+                            Icon::Folder,
+                            "Pilih tools",
                             true,
                             137.0,
                             36.0,
@@ -590,13 +568,7 @@ impl DroidNowApp {
                     .inner_margin(egui::Margin::symmetric(12, 14)),
             )
             .show(ctx, |ui| {
-                ui.label(
-                    RichText::new("MENU")
-                        .size(9.0)
-                        .monospace()
-                        .strong()
-                        .color(MUTED),
-                );
+                ui.label(RichText::new("Navigasi").size(9.0).strong().color(MUTED));
                 ui.add_space(10.0);
                 for (page, label, icon_kind) in [
                     (Page::Home, "Ringkasan", Icon::Home),
@@ -605,40 +577,27 @@ impl DroidNowApp {
                     (Page::Help, "Panduan", Icon::Help),
                 ] {
                     let selected = self.page == page;
-                    let (rect, response) = ui.allocate_exact_size(
-                        egui::vec2(ui.available_width(), 40.0),
-                        egui::Sense::click(),
-                    );
-                    let fill = if selected {
-                        Color32::from_rgb(34, 91, 83)
-                    } else if response.hovered() {
-                        Color32::from_rgb(35, 39, 46)
-                    } else {
-                        PANEL_DARK
-                    };
-                    ui.painter()
-                        .rect_filled(rect, egui::CornerRadius::same(5), fill);
-                    ui.painter().rect_stroke(
-                        rect,
-                        egui::CornerRadius::same(5),
-                        Stroke::new(1.0_f32, if selected { GREEN } else { PANEL_DARK }),
-                        egui::StrokeKind::Inside,
+                    let width = ui.available_width();
+                    let response = ui.add_sized(
+                        [width, 40.0],
+                        egui::Button::selectable(
+                            selected,
+                            RichText::new(label).size(12.0).color(if selected {
+                                TEXT
+                            } else {
+                                MUTED
+                            }),
+                        )
+                        .corner_radius(egui::CornerRadius::same(5)),
                     );
                     paint_icon(
                         ui.painter(),
                         icon_kind,
                         egui::Rect::from_center_size(
-                            egui::pos2(rect.left() + 24.0, rect.center().y),
+                            egui::pos2(response.rect.left() + 38.0, response.rect.center().y),
                             egui::vec2(18.0, 18.0),
                         ),
                         if selected { GREEN } else { MUTED },
-                    );
-                    ui.painter().text(
-                        egui::pos2(rect.left() + 45.0, rect.center().y),
-                        Align2::LEFT_CENTER,
-                        label,
-                        FontId::proportional(12.0),
-                        if selected { TEXT } else { MUTED },
                     );
                     if response.clicked() {
                         self.page = page;
@@ -647,7 +606,7 @@ impl DroidNowApp {
                 }
                 ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
                     ui.label(
-                        RichText::new("Xiaomi Redmi 4A · pemeriksaan terbatas")
+                        RichText::new("Validasi model: Redmi 4A (rolex)")
                             .size(9.0)
                             .color(AMBER),
                     );
@@ -673,13 +632,13 @@ impl DroidNowApp {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
                     card(ui, |ui| {
                         ui.horizontal(|ui| {
-                            draw_icon(ui, Icon::Help, 17.0, BLUE);
-                            ui.label(RichText::new("Persiapan").size(14.0).strong().color(TEXT));
+                            draw_icon(ui, Icon::Help, 17.0, MUTED);
+                            ui.label(RichText::new("Sambungkan perangkat").size(14.0).strong().color(TEXT));
                         });
                         ui.add_space(9.0);
-                        bullet(ui, "1", "ADB: aktifkan USB debugging dan sambungkan ponsel.");
-                        bullet(ui, "2", "Setujui permintaan akses di layar ponsel jika muncul.");
-                        bullet(ui, "3", "Fastboot: matikan ponsel, tahan Volume− + Power, lalu sambungkan USB.");
+                        bullet(ui, "ADB", "Aktifkan USB debugging dan sambungkan perangkat dengan kabel data.");
+                        bullet(ui, "Izin", "Setujui permintaan akses di layar perangkat jika muncul.");
+                        bullet(ui, "Fastboot", "Masuk ke mode Fastboot sesuai petunjuk model, lalu sambungkan USB.");
                         ui.add_space(5.0);
                         ui.separator();
                         ui.horizontal(|ui| {
@@ -706,13 +665,13 @@ impl DroidNowApp {
                             ui.label(RichText::new(format!("Belum ditemukan: {missing}")).size(10.0).color(AMBER));
                         }
                         ui.add_space(7.0);
-                        ui.label(RichText::new("Jika belum tersedia, gunakan tombol utama untuk menyiapkan ADB dan Fastboot dari Google.").size(9.0).color(MUTED));
+                        ui.label(RichText::new("Tombol utama mengunduh Platform-Tools resmi dari Google jika ADB atau Fastboot belum tersedia.").size(9.0).color(MUTED));
                         ui.label(RichText::new("Program dari folder pilihan tidak diperiksa tanda tangan atau hash-nya. Gunakan sumber tepercaya.").size(9.0).color(AMBER));
                         ui.add_space(5.0);
                         if draw_icon_button(ui, Icon::Folder, "Pilih folder Platform-Tools", true, ui.available_width(), 36.0, false).clicked() {
                             self.choose_tools_folder(ui.ctx());
                         }
-                        if cfg!(target_os = "windows") && draw_icon_button(ui, Icon::Shield, "Pasang driver USB Windows", true, ui.available_width(), 36.0, false).clicked() {
+                        if cfg!(target_os = "windows") && draw_icon_button(ui, Icon::Shield, "Panduan driver Xiaomi", true, ui.available_width(), 36.0, false).clicked() {
                             self.show_driver_dialog = true;
                         }
                     });
@@ -723,17 +682,17 @@ impl DroidNowApp {
                             ui.label(RichText::new("Batasan keamanan").size(14.0).strong().color(TEXT));
                         });
                         ui.add_space(7.0);
-                        ui.label(RichText::new("DroidNow hanya membaca informasi perangkat dan dapat memulai ulang setelah Anda menyetujui. Aplikasi tidak memasang firmware, membuka bootloader, menghapus data, atau menulis partisi.").size(10.0).color(MUTED));
+                        ui.label(RichText::new("DroidNow hanya membaca perangkat dan dapat memulai ulang setelah konfirmasi. Aplikasi tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi.").size(10.0).color(MUTED));
                         ui.add_space(7.0);
                         ui.label(RichText::new("Baca & mulai ulang saja").size(10.0).strong().color(AMBER));
                     });
                     ui.add_space(10.0);
                     card(ui, |ui| {
                         ui.horizontal(|ui| {
-                            draw_icon(ui, Icon::Activity, 17.0, BLUE);
+                            draw_icon(ui, Icon::Activity, 17.0, MUTED);
                             ui.label(RichText::new("Aktivitas terbaru").size(14.0).strong().color(TEXT));
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if ui.button(RichText::new("Lihat semua").size(10.0).color(GREEN)).clicked() {
+                                if ui.button(RichText::new("Buka riwayat").size(10.0).color(GREEN)).clicked() {
                                     self.page = Page::Log;
                                 }
                             });
@@ -760,9 +719,19 @@ impl DroidNowApp {
 
     fn draw_connection_banner(&self, ui: &mut egui::Ui) {
         let (title, message, color) = match self.selected_device() {
+            None if self.scanning => (
+                "Memeriksa koneksi",
+                "DroidNow sedang mencari perangkat melalui ADB dan Fastboot.",
+                MUTED,
+            ),
+            None if !self.tool_status.adb_available && !self.tool_status.fastboot_available => (
+                "ADB/Fastboot belum tersedia",
+                "Siapkan tools resmi atau pilih folder Android SDK Platform-Tools.",
+                AMBER,
+            ),
             None => (
                 "Belum ada perangkat terhubung",
-                "Sambungkan ponsel melalui USB. DroidNow akan memindai koneksi ADB dan Fastboot.",
+                "Sambungkan perangkat Android melalui USB, lalu pindai koneksi ADB atau Fastboot.",
                 MUTED,
             ),
             Some(device) if device.mode == "adb" && device.state == "unauthorized" => (
@@ -806,7 +775,7 @@ impl DroidNowApp {
     fn draw_device_card(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         card(ui, |ui| {
             ui.horizontal(|ui| {
-                draw_icon(ui, Icon::Device, 18.0, BLUE);
+                draw_icon(ui, Icon::Device, 18.0, MUTED);
                 ui.label(
                     RichText::new("Informasi perangkat")
                         .size(14.0)
@@ -822,7 +791,8 @@ impl DroidNowApp {
                             })
                             .unwrap_or_else(|| "Pilih perangkat".into());
                         let mut selected = self.selected_index;
-                        egui::ComboBox::from_id_salt("device-picker")
+                        let combo_id = ui.make_persistent_id(egui::Id::new("Perangkat"));
+                        let response = egui::ComboBox::from_label("Perangkat")
                             .selected_text(RichText::new(selected_label).size(9.0).color(TEXT))
                             .show_ui(ui, |ui| {
                                 for (index, device) in self.devices.iter().enumerate() {
@@ -837,16 +807,93 @@ impl DroidNowApp {
                                         ),
                                     );
                                 }
+                            })
+                            .response;
+                        let popup_open = egui::ComboBox::is_open(ctx, combo_id);
+                        let key_step = if response.has_focus() && !popup_open {
+                            ctx.input(|input| {
+                                if input.key_pressed(egui::Key::ArrowDown) {
+                                    1isize
+                                } else if input.key_pressed(egui::Key::ArrowUp) {
+                                    -1
+                                } else {
+                                    0
+                                }
+                            })
+                        } else {
+                            0
+                        };
+                        if selected == self.selected_index && key_step != 0 {
+                            let len = self.devices.len();
+                            let index = selected.unwrap_or(0) % len;
+                            selected = Some(if key_step > 0 {
+                                (index + 1) % len
+                            } else {
+                                (index + len - 1) % len
                             });
+                        }
                         if selected != self.selected_index {
                             self.select_device(selected, ctx);
                         }
                     } else {
-                        ui.label(RichText::new("Android").size(9.0).color(MUTED));
+                        if let Some(device) = self.selected_device() {
+                            ui.label(
+                                RichText::new(device.mode.to_uppercase())
+                                    .size(9.0)
+                                    .color(MUTED),
+                            );
+                        } else {
+                            ui.label(RichText::new("Belum dipilih").size(9.0).color(MUTED));
+                        }
                     }
                 });
             });
             ui.add_space(9.0);
+            if let Some(device) = self.selected_device() {
+                match self.device_info.as_ref() {
+                    Some((serial, Ok(_))) if serial == &device.serial => {}
+                    Some((serial, Err(error)))
+                        if serial == &device.serial && error == "Membaca identitas perangkat…" =>
+                    {
+                        ui.label(
+                            RichText::new("Membaca informasi dasar perangkat…")
+                                .size(10.0)
+                                .color(MUTED),
+                        );
+                    }
+                    Some((serial, Err(error))) if serial == &device.serial => {
+                        ui.label(
+                            RichText::new(format!(
+                                "Informasi dasar tidak dapat dibaca: {error}. Periksa koneksi dan ketersediaan tools."
+                            ))
+                            .size(10.0)
+                            .color(RED),
+                        );
+                    }
+                    _ => {
+                        ui.label(
+                            RichText::new("Menunggu hasil pembacaan informasi dasar…")
+                                .size(10.0)
+                                .color(MUTED),
+                        );
+                    }
+                }
+            } else if self.scanning {
+                ui.label(
+                    RichText::new("Memindai perangkat Android yang terhubung…")
+                        .size(10.0)
+                        .color(MUTED),
+                );
+            } else {
+                ui.label(
+                    RichText::new(
+                        "Sambungkan perangkat melalui USB untuk membaca informasi yang tersedia.",
+                    )
+                    .size(10.0)
+                    .color(MUTED),
+                );
+            }
+            ui.add_space(6.0);
             let mut values = std::collections::HashMap::<String, String>::new();
             if let (Some(device), Some((serial, Ok(info)))) =
                 (self.selected_device(), self.device_info.as_ref())
@@ -860,31 +907,42 @@ impl DroidNowApp {
                     }
                 }
             }
-            let model = values.get("model").cloned().unwrap_or_else(|| "—".into());
+            let missing_value = if self.selected_device().is_some() {
+                "Belum terbaca"
+            } else {
+                "Belum tersedia"
+            };
+            let model = values
+                .get("model")
+                .cloned()
+                .unwrap_or_else(|| missing_value.into());
             let codename = values
                 .get("codename")
                 .or_else(|| values.get("product"))
                 .cloned()
-                .unwrap_or_else(|| "—".into());
-            let android = values.get("android").cloned().unwrap_or_else(|| "—".into());
+                .unwrap_or_else(|| missing_value.into());
+            let android = values
+                .get("android")
+                .cloned()
+                .unwrap_or_else(|| missing_value.into());
             let bootloader = values
                 .get("bootloader unlocked")
                 .cloned()
-                .unwrap_or_else(|| "—".into());
+                .unwrap_or_else(|| missing_value.into());
             let serial = self
                 .selected_device()
                 .map(|device| device.serial.clone())
-                .unwrap_or_else(|| "—".into());
+                .unwrap_or_else(|| missing_value.into());
             let connection = self
                 .selected_device()
                 .map(|device| format!("{} · {}", device.mode.to_uppercase(), device.state))
-                .unwrap_or_else(|| "—".into());
+                .unwrap_or_else(|| missing_value.into());
             ui.columns(2, |columns| {
                 kv_row(&mut columns[0], "Model", &model);
                 kv_row(&mut columns[0], "Kode perangkat", &codename);
                 kv_row(&mut columns[0], "Versi Android", &android);
-                kv_row(&mut columns[1], "Status Bootloader", &bootloader);
-                kv_row(&mut columns[1], "Nomor Seri", &serial);
+                kv_row(&mut columns[1], "Status bootloader", &bootloader);
+                kv_row(&mut columns[1], "Nomor seri", &serial);
                 kv_row(&mut columns[1], "Koneksi", &connection);
             });
             if let Some((info_serial, Ok(info))) = self.device_info.as_ref() {
@@ -952,8 +1010,8 @@ impl DroidNowApp {
                 let button_width = ((ui.available_width() - 16.0) / 3.0).max(120.0);
                 for (label, action, icon_kind) in [
                     ("Mulai ulang ke Android", "system", Icon::Reboot),
-                    ("Buka Recovery", "recovery", Icon::Info),
-                    ("Buka Fastboot", "bootloader", Icon::Scan),
+                    ("Buka Recovery", "recovery", Icon::Reboot),
+                    ("Buka Fastboot", "bootloader", Icon::Reboot),
                 ] {
                     let enabled = self.selected_device().is_some_and(|device| {
                         ((device.mode == "adb" && device.state == "device")
@@ -973,7 +1031,7 @@ impl DroidNowApp {
     fn draw_rom_card(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         card(ui, |ui| {
             ui.horizontal(|ui| {
-                draw_icon(ui, Icon::Folder, 18.0, BLUE);
+                draw_icon(ui, Icon::Folder, 18.0, MUTED);
                 ui.label(
                     RichText::new("Periksa berkas ROM lokal")
                         .size(14.0)
@@ -983,27 +1041,36 @@ impl DroidNowApp {
             });
             ui.label(
                 RichText::new(
-                    "Menghitung SHA-256 berkas lokal. Skrip tidak dijalankan dan ponsel tidak diubah.",
+                    "Membaca nama berkas dan menghitung SHA-256 secara lokal. Skrip tidak dijalankan dan perangkat tidak diubah.",
                 )
                 .size(10.0)
                 .color(MUTED),
             );
             ui.add_space(8.0);
+            ui.label(
+                RichText::new("Folder yang akan diperiksa")
+                    .size(9.0)
+                    .color(MUTED),
+            );
             ui.horizontal(|ui| {
                 let browse_width = 146.0;
                 let inspect_width = 144.0;
                 let text_width =
                     (ui.available_width() - browse_width - inspect_width - 16.0).max(120.0);
-                ui.add_sized(
-                    [text_width, 32.0],
-                    egui::TextEdit::singleline(&mut self.rom_folder)
-                        .hint_text("Pilih folder ROM yang sudah diekstrak"),
-                );
+                let can_edit_folder = !self.inspecting_rom;
+                let can_inspect = can_edit_folder && !self.rom_folder.trim().is_empty();
+                ui.add_enabled_ui(can_edit_folder, |ui| {
+                    ui.add_sized(
+                        [text_width, 32.0],
+                        egui::TextEdit::singleline(&mut self.rom_folder)
+                            .hint_text("Pilih folder ROM hasil ekstrak"),
+                    );
+                });
                 if draw_icon_button(
                     ui,
                     Icon::Folder,
-                    "Pilih folder…",
-                    true,
+                    "Pilih folder",
+                    can_edit_folder,
                     browse_width,
                     36.0,
                     false,
@@ -1016,7 +1083,7 @@ impl DroidNowApp {
                     ui,
                     Icon::Scan,
                     "Periksa berkas",
-                    true,
+                    can_inspect,
                     inspect_width,
                     36.0,
                     false,
@@ -1027,7 +1094,24 @@ impl DroidNowApp {
                 }
             });
             ui.add_space(7.0);
-            if let Some((_path, inspection)) = &self.rom {
+            if self.inspecting_rom {
+                ui.label(
+                    RichText::new("Memeriksa isi folder dan menghitung SHA-256 berkas lokal…")
+                        .size(10.0)
+                        .color(MUTED),
+                );
+            } else if let Some(error) = &self.rom_error {
+                ui.label(
+                    RichText::new(format!("Pemeriksaan gagal: {error}"))
+                        .size(10.0)
+                        .color(RED),
+                );
+                ui.label(
+                    RichText::new("Pilih folder yang benar, lalu jalankan pemeriksaan lagi.")
+                        .size(9.0)
+                        .color(MUTED),
+                );
+            } else if let Some((_path, inspection)) = &self.rom {
                 let hint_color = if inspection.codename_hint == "rolex" {
                     GREEN
                 } else {
@@ -1051,15 +1135,16 @@ impl DroidNowApp {
                         .color(hint_color),
                     );
                 });
-                ui.label(
-                    RichText::new(format!(
+                let summary = if inspection.entries.is_empty() {
+                    "Folder ini tidak berisi berkas gambar atau metadata yang dikenali. Pilih folder ROM hasil ekstrak.".to_string()
+                } else {
+                    format!(
                         "{} berkas terkait · {}",
                         inspection.entries.len(),
                         inspection.script_hint
-                    ))
-                    .size(9.0)
-                    .color(MUTED),
-                );
+                    )
+                };
+                ui.label(RichText::new(summary).size(9.0).color(MUTED));
                 ui.label(
                     RichText::new(if inspection.verified_catalog_match {
                         "Sumber resmi dan kecocokan firmware: terverifikasi"
@@ -1073,7 +1158,7 @@ impl DroidNowApp {
                     .max_height(78.0)
                     .show(ui, |ui| {
                         for entry in inspection.entries.iter().take(12) {
-                            let kind_color = if entry.kind == "IMAGE" { BLUE } else { AMBER };
+                            let kind_color = if entry.kind == "IMAGE" { MUTED } else { AMBER };
                             ui.horizontal(|ui| {
                                 ui.label(
                                     RichText::new(&entry.kind)
@@ -1100,7 +1185,13 @@ impl DroidNowApp {
                     });
                 ui.label(RichText::new(&inspection.warning).size(10.0).color(AMBER));
             } else {
-                ui.label(RichText::new("Nama, ukuran, dan SHA-256 lokal dapat diperiksa. Hash ini tidak memastikan sumber resmi atau kecocokan firmware.").size(10.0).color(MUTED));
+                ui.label(
+                    RichText::new(
+                        "Pilih folder untuk melihat nama, ukuran, dan SHA-256 berkas yang ditemukan.",
+                    )
+                    .size(10.0)
+                    .color(MUTED),
+                );
             }
         });
     }
@@ -1109,6 +1200,10 @@ impl DroidNowApp {
         let Some(action) = self.pending_action else {
             return;
         };
+        if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.pending_action = None;
+            return;
+        }
         let device = self.selected_device().cloned();
         let mut confirm = false;
         let mut cancel = false;
@@ -1119,13 +1214,7 @@ impl DroidNowApp {
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.set_min_width(330.0);
-                ui.label(
-                    RichText::new("KONFIRMASI")
-                        .size(9.0)
-                        .monospace()
-                        .strong()
-                        .color(AMBER),
-                );
+                ui.label(RichText::new("Konfirmasi").size(9.0).strong().color(AMBER));
                 ui.add_space(5.0);
                 ui.label(
                     RichText::new(action_prompt(action))
@@ -1148,7 +1237,7 @@ impl DroidNowApp {
                         ))
                         .size(10.0)
                         .monospace()
-                        .color(BLUE),
+                        .color(MUTED),
                     );
                 }
                 ui.add_space(12.0);
@@ -1253,9 +1342,9 @@ impl eframe::App for DroidNowApp {
                         Page::Home => {
                             ui.horizontal(|ui| {
                                 ui.vertical(|ui| {
-                                    ui.label(RichText::new("DIAGNOSTIK ANDROID").size(10.0).monospace().strong().color(MUTED));
-                                    ui.heading(RichText::new("Perangkat & koneksi").size(24.0).strong().color(TEXT));
-                                    ui.label(RichText::new("Periksa koneksi dan informasi perangkat. Pemeriksaan model terbatas pada Xiaomi Redmi 4A.").size(11.0).color(MUTED));
+                                    ui.label(RichText::new("Diagnostik perangkat Android").size(11.0).strong().color(MUTED));
+                                    ui.heading(RichText::new("Perangkat dan koneksi").size(24.0).strong().color(TEXT));
+                                    ui.label(RichText::new("Pindai koneksi ADB/Fastboot dan baca informasi dasar. Validasi model saat ini: Xiaomi Redmi 4A (rolex).").size(11.0).color(MUTED));
                                 });
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let tools_ready = self.tool_status.adb_available && self.tool_status.fastboot_available;
@@ -1288,13 +1377,20 @@ impl eframe::App for DroidNowApp {
                             self.draw_rom_card(ui, ctx);
                             ui.add_space(8.0);
                             egui::Frame::new()
-                                .fill(Color32::from_rgb(31, 40, 54))
-                                .stroke(Stroke::new(1.0_f32, Color32::from_rgb(55, 70, 92)))
+                                .fill(PANEL)
+                                .stroke(Stroke::new(1.0_f32, LINE))
                                 .inner_margin(egui::Margin::symmetric(11, 7))
                                 .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        draw_icon(ui, Icon::Shield, 17.0, BLUE);
-                                        ui.label(RichText::new("Pemeriksaan terbatas: Xiaomi Redmi 4A (rolex). DroidNow tidak memasang firmware, membuka bootloader, menghapus data, atau menulis partisi.").size(10.0).color(TEXT));
+                                    ui.horizontal_top(|ui| {
+                                        draw_icon(ui, Icon::Shield, 17.0, AMBER);
+                                        ui.add(
+                                            egui::Label::new(
+                                                RichText::new("Validasi model terbatas pada Xiaomi Redmi 4A (rolex). Pemeriksaan hanya membaca; setiap mulai ulang meminta konfirmasi.")
+                                                    .size(10.0)
+                                                    .color(TEXT),
+                                            )
+                                            .wrap(),
+                                        );
                                     });
                                 });
                         }
@@ -1324,7 +1420,7 @@ impl eframe::App for DroidNowApp {
                             });
                         }
                         Page::About => {
-                            page_heading(ui, "Tentang DroidNow", "Diagnostik perangkat Android.");
+                            page_heading(ui, "Tentang DroidNow", "Pemeriksaan koneksi dan informasi dasar Android.");
                             ui.add_space(10.0);
                             card(ui, |ui| {
                                 ui.label(RichText::new(format!("DroidNow v{}", env!("CARGO_PKG_VERSION"))).size(15.0).strong().color(TEXT));
@@ -1332,13 +1428,13 @@ impl eframe::App for DroidNowApp {
                                 ui.label(RichText::new("DroidNow membaca informasi perangkat dan memeriksa berkas lokal tanpa memasang apa pun ke ponsel.").size(11.0).color(MUTED));
                                 ui.add_space(10.0);
                                 ui.label(RichText::new("Fungsi").size(11.0).strong().color(TEXT));
-                                ui.label(RichText::new("Memindai koneksi ADB/Fastboot, membaca informasi perangkat, menghitung SHA-256 berkas terpilih, dan mengekspor laporan lokal dengan penyamaran data tertentu.").size(10.0).color(MUTED));
+                                ui.label(RichText::new("Mendeteksi perangkat yang terlihat melalui ADB/Fastboot, membaca informasi yang tersedia, memeriksa SHA-256 berkas pilihan, dan menyimpan laporan lokal dengan sebagian data disamarkan.").size(10.0).color(MUTED));
                                 ui.add_space(10.0);
-                                ui.label(RichText::new("Perangkat yang didukung").size(11.0).strong().color(TEXT));
-                                ui.label(RichText::new("Pemeriksaan terbatas pada Xiaomi Redmi 4A (rolex). Perangkat lain dapat muncul dalam pemindaian, tetapi belum divalidasi sebagai model yang didukung.").size(10.0).color(MUTED));
+                                ui.label(RichText::new("Cakupan validasi model").size(11.0).strong().color(TEXT));
+                                ui.label(RichText::new("Validasi identitas model saat ini hanya mencakup Xiaomi Redmi 4A (rolex). Perangkat Android lain dapat terdeteksi, tetapi belum divalidasi sebagai model yang didukung.").size(10.0).color(MUTED));
                                 ui.add_space(10.0);
                                 ui.label(RichText::new("Keamanan").size(11.0).strong().color(AMBER));
-                                ui.label(RichText::new("DroidNow tidak memasang firmware, membuka atau mengunci bootloader, menghapus data, atau menulis partisi. Perintah mulai ulang selalu meminta konfirmasi.").size(10.0).color(MUTED));
+                                ui.label(RichText::new("DroidNow tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi. Setiap mulai ulang meminta konfirmasi.").size(10.0).color(MUTED));
                             });
                         }
                         Page::Help => {
@@ -1346,8 +1442,8 @@ impl eframe::App for DroidNowApp {
                             ui.add_space(10.0);
                             card(ui, |ui| {
                                 help_step(ui, "1", "Siapkan ADB dan Fastboot", "Jika belum tersedia, tekan Siapkan ADB/Fastboot di halaman utama. DroidNow mengunduh tools resmi Google dan memindai otomatis setelah selesai.");
-                                help_step(ui, "2", "Sambungkan ponsel", "Untuk ADB, aktifkan USB debugging dan setujui permintaan akses. Untuk Fastboot, matikan ponsel lalu tahan Volume− + Power.");
-                                help_step(ui, "3", "Tinjau hasil", "DroidNow memindai saat dibuka dan setelah menyiapkan tools. Tekan Pindai perangkat untuk memindai lagi.");
+                                help_step(ui, "2", "Sambungkan perangkat Android", "Untuk ADB, aktifkan USB debugging, sambungkan kabel data, lalu setujui permintaan akses. Untuk Fastboot, gunakan cara masuk yang sesuai dengan model perangkat.");
+                                help_step(ui, "3", "Tinjau hasil", "DroidNow memindai saat dibuka dan setelah menyiapkan tools. Jika ADB/Fastboot sudah siap, tekan Pindai perangkat untuk memeriksa lagi.");
                             });
                             ui.add_space(9.0);
                             card(ui, |ui| {
@@ -1391,13 +1487,7 @@ fn kv_row(ui: &mut egui::Ui, label: &str, value: &str) {
 }
 
 fn page_heading(ui: &mut egui::Ui, title: &str, subtitle: &str) {
-    ui.label(
-        RichText::new("DROIDNOW")
-            .size(9.0)
-            .monospace()
-            .strong()
-            .color(MUTED),
-    );
+    ui.label(RichText::new("DroidNow").size(10.0).strong().color(MUTED));
     ui.heading(RichText::new(title).size(23.0).strong().color(TEXT));
     ui.label(RichText::new(subtitle).size(10.0).color(MUTED));
 }
@@ -1426,7 +1516,7 @@ fn bullet(ui: &mut egui::Ui, number: &str, text: &str) {
                 .size(10.0)
                 .monospace()
                 .strong()
-                .color(BLUE),
+                .color(MUTED),
         );
         ui.label(RichText::new(text).size(10.0).color(MUTED));
     });
@@ -1444,10 +1534,13 @@ fn apply_visuals(ctx: &egui::Context) {
     visuals.widgets.noninteractive.bg_fill = PANEL;
     visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, TEXT);
     visuals.widgets.inactive.bg_fill = Color32::from_rgb(34, 38, 45);
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
     visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, TEXT);
     visuals.widgets.hovered.bg_fill = Color32::from_rgb(49, 55, 64);
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
     visuals.widgets.active.bg_fill = Color32::from_rgb(42, 91, 81);
     visuals.widgets.open.bg_fill = Color32::from_rgb(38, 44, 52);
+    visuals.widgets.open.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
     visuals.window_stroke = Stroke::new(1.0_f32, LINE);
     ctx.set_visuals(visuals);
     let mut style = (*ctx.style()).clone();
@@ -1479,6 +1572,10 @@ impl DroidNowApp {
         if !self.show_driver_dialog || !cfg!(target_os = "windows") {
             return;
         }
+        if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.show_driver_dialog = false;
+            return;
+        }
         const XIAOMI_DRIVER_GUIDE: &str = "https://new.c.mi.com/mx/post/11443";
         let mut close = false;
         let mut open_guide = false;
@@ -1491,7 +1588,7 @@ impl DroidNowApp {
                 ui.set_min_width(390.0);
                 ui.label(RichText::new("Pemasangan driver memerlukan tindakan Anda di Windows.").size(13.0).strong().color(TEXT));
                 ui.add_space(6.0);
-                ui.label(RichText::new("DroidNow tidak mengunduh atau menjalankan installer driver secara otomatis. Buka panduan Xiaomi resmi untuk paket MiFlash dan instruksi memasang ulang driver melalui menu Driver.").size(10.0).color(MUTED));
+                ui.label(RichText::new("DroidNow tidak mengunduh atau menjalankan installer driver secara otomatis. Panduan Xiaomi menjelaskan paket MiFlash dan pemasangan ulang driver Windows.").size(10.0).color(MUTED));
                 ui.add_space(7.0);
                 ui.label(RichText::new("Jalankan MiFlash secara manual dan setujui prompt Administrator/UAC Windows sendiri hanya jika Anda ingin memasang driver. Jangan lanjutkan bila sumber atau penerbit paket tidak cocok.").size(10.0).color(AMBER));
                 ui.add_space(10.0);
@@ -1509,7 +1606,7 @@ impl DroidNowApp {
         }
         if open_guide {
             match webbrowser::open(XIAOMI_DRIVER_GUIDE) {
-                Ok(()) => self.log("Panduan driver resmi Xiaomi dibuka di browser; pemasangan tetap dilakukan manual di Windows."),
+                Ok(()) => self.log("Panduan driver Xiaomi dibuka di browser. Pemasangan tetap dilakukan manual di Windows."),
                 Err(error) => self.log(format!("Panduan Xiaomi gagal dibuka: {error}")),
             }
         }

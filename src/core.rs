@@ -1,15 +1,17 @@
+use crate::process::{ProcessOutput, ProcessRunner, SystemProcessRunner};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::fs::File;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::thread;
+use std::io::{Read, Seek, Write};
+use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use wait_timeout::ChildExt;
+
+const MAX_PLATFORM_TOOLS_ARCHIVE_SIZE: u64 = 100 * 1024 * 1024;
+const MAX_PLATFORM_TOOLS_EXTRACTED_SIZE: u64 = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Device {
@@ -53,18 +55,30 @@ pub struct RomInspection {
     pub warning: String,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone)]
 pub struct ToolLocator {
     directory: Option<PathBuf>,
+    runner: Arc<dyn ProcessRunner>,
 }
 
-struct ToolOutput {
-    stdout: String,
-    stderr: String,
-    code: Option<i32>,
+impl Default for ToolLocator {
+    fn default() -> Self {
+        Self {
+            directory: None,
+            runner: Arc::new(SystemProcessRunner),
+        }
+    }
 }
 
 impl ToolLocator {
+    #[cfg(test)]
+    fn with_runner(runner: Arc<dyn ProcessRunner>) -> Self {
+        Self {
+            directory: None,
+            runner,
+        }
+    }
+
     pub fn set_directory(&mut self, path: PathBuf) -> Result<(), String> {
         if !path.is_dir() {
             return Err("Folder yang dipilih bukan direktori yang dapat dibaca.".to_string());
@@ -135,68 +149,17 @@ impl ToolLocator {
         let binary = self.resolve(name).ok_or_else(|| {
             format!("{name} tidak ditemukan. Pilih folder Android SDK Platform-Tools.")
         })?;
-        // Executable and arguments are passed directly; no shell is used.
-        let mut child = Command::new(&binary)
-            .args(args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| format!("Gagal menjalankan {}: {error}", binary.display()))?;
-
-        let mut stdout_pipe = child.stdout.take().expect("piped stdout");
-        let mut stderr_pipe = child.stderr.take().expect("piped stderr");
-        let stdout_reader = thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let _ = stdout_pipe.read_to_end(&mut bytes);
-            String::from_utf8_lossy(&bytes).into_owned()
-        });
-        let stderr_reader = thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let _ = stderr_pipe.read_to_end(&mut bytes);
-            String::from_utf8_lossy(&bytes).into_owned()
-        });
-
-        let status = match child.wait_timeout(Duration::from_secs(timeout_seconds)) {
-            Ok(Some(status)) => status,
-            Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = stdout_reader.join();
-                let _ = stderr_reader.join();
-                return Err(format!(
-                    "{name} tidak merespons (timeout {timeout_seconds} detik)."
-                ));
-            }
-            Err(error) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = stdout_reader.join();
-                let _ = stderr_reader.join();
-                return Err(format!("Tidak dapat menunggu {name}: {error}"));
-            }
-        };
-        let stdout = stdout_reader
-            .join()
-            .unwrap_or_else(|_| "Tidak dapat membaca keluaran stdout".to_string());
-        let stderr = stderr_reader
-            .join()
-            .unwrap_or_else(|_| "Tidak dapat membaca keluaran stderr".to_string());
-        Ok(ToolOutput {
-            stdout,
-            stderr,
-            code: status.code(),
-        })
+        self.runner
+            .run(&binary, args, Duration::from_secs(timeout_seconds))
     }
 }
+
+type ToolOutput = ProcessOutput;
 
 /// Downloads and installs Google's official Android SDK Platform-Tools for this OS.
 /// The archive is extracted to the current user's application data directory; no
 /// administrator privileges are needed and no device commands are run.
 pub fn install_platform_tools() -> Result<PathBuf, String> {
-    const MAX_ARCHIVE_SIZE: u64 = 100 * 1024 * 1024;
-    const MAX_EXTRACTED_SIZE: u64 = 512 * 1024 * 1024;
-
     let (archive_name, executable_suffix) = if cfg!(target_os = "windows") {
         ("platform-tools-latest-windows.zip", ".exe")
     } else if cfg!(target_os = "macos") {
@@ -234,7 +197,7 @@ pub fn install_platform_tools() -> Result<PathBuf, String> {
             .map_err(|error| format!("Unduhan resmi Platform-Tools gagal: {error}"))?;
         if response
             .content_length()
-            .is_some_and(|size| size > MAX_ARCHIVE_SIZE)
+            .is_some_and(|size| size > MAX_PLATFORM_TOOLS_ARCHIVE_SIZE)
         {
             return Err("Ukuran arsip Platform-Tools melebihi batas keamanan 100 MiB.".into());
         }
@@ -244,9 +207,12 @@ pub fn install_platform_tools() -> Result<PathBuf, String> {
             .create_new(true)
             .open(&archive_path)
             .map_err(|error| format!("Berkas unduhan sementara tidak dapat dibuat: {error}"))?;
-        let downloaded = std::io::copy(&mut response.take(MAX_ARCHIVE_SIZE + 1), &mut archive_file)
-            .map_err(|error| format!("Unduhan Platform-Tools terputus: {error}"))?;
-        if downloaded > MAX_ARCHIVE_SIZE {
+        let downloaded = std::io::copy(
+            &mut response.take(MAX_PLATFORM_TOOLS_ARCHIVE_SIZE + 1),
+            &mut archive_file,
+        )
+        .map_err(|error| format!("Unduhan Platform-Tools terputus: {error}"))?;
+        if downloaded > MAX_PLATFORM_TOOLS_ARCHIVE_SIZE {
             return Err("Ukuran arsip Platform-Tools melebihi batas keamanan 100 MiB.".into());
         }
         archive_file
@@ -258,72 +224,8 @@ pub fn install_platform_tools() -> Result<PathBuf, String> {
             .map_err(|error| format!("Folder pemasangan sementara tidak dapat dibuat: {error}"))?;
         let archive_file = File::open(&archive_path)
             .map_err(|error| format!("Arsip unduhan tidak dapat dibuka: {error}"))?;
-        let mut archive = zip::ZipArchive::new(archive_file)
-            .map_err(|error| format!("Arsip resmi Platform-Tools tidak valid: {error}"))?;
-        let mut extracted_size = 0_u64;
-        for index in 0..archive.len() {
-            let mut entry = archive
-                .by_index(index)
-                .map_err(|error| format!("Isi arsip Platform-Tools tidak dapat dibaca: {error}"))?;
-            let relative_path = entry
-                .enclosed_name()
-                .ok_or_else(|| {
-                    "Arsip Platform-Tools berisi jalur file yang tidak aman.".to_string()
-                })?
-                .to_path_buf();
-            if entry.is_symlink() {
-                return Err("Arsip Platform-Tools berisi tautan simbolik yang ditolak.".into());
-            }
-            extracted_size = extracted_size
-                .checked_add(entry.size())
-                .ok_or_else(|| "Ukuran ekstraksi arsip tidak valid.".to_string())?;
-            if extracted_size > MAX_EXTRACTED_SIZE {
-                return Err("Ukuran hasil ekstraksi melebihi batas keamanan 512 MiB.".into());
-            }
-
-            let output_path = stage_dir.join(relative_path);
-            if entry.is_dir() {
-                fs::create_dir_all(&output_path)
-                    .map_err(|error| format!("Folder Platform-Tools gagal diekstrak: {error}"))?;
-                continue;
-            }
-            if let Some(parent) = output_path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|error| format!("Folder Platform-Tools gagal dibuat: {error}"))?;
-            }
-            let unix_mode = entry.unix_mode();
-            let mut output = File::create(&output_path)
-                .map_err(|error| format!("Berkas Platform-Tools gagal dibuat: {error}"))?;
-            std::io::copy(&mut entry, &mut output)
-                .map_err(|error| format!("Berkas Platform-Tools gagal diekstrak: {error}"))?;
-            output
-                .flush()
-                .map_err(|error| format!("Berkas Platform-Tools gagal disimpan: {error}"))?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let filename = output_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or_default();
-                let mut mode = unix_mode.unwrap_or(0o644) & 0o777;
-                if filename == "adb" || filename == "fastboot" {
-                    mode |= 0o111;
-                }
-                fs::set_permissions(&output_path, fs::Permissions::from_mode(mode))
-                    .map_err(|error| format!("Izin berkas Platform-Tools gagal diatur: {error}"))?;
-            }
-        }
-
+        extract_platform_tools_archive(archive_file, &stage_dir, executable_suffix)?;
         let staged_tools_dir = stage_dir.join("platform-tools");
-        for binary in [
-            format!("adb{executable_suffix}"),
-            format!("fastboot{executable_suffix}"),
-        ] {
-            if !staged_tools_dir.join(binary).is_file() {
-                return Err("Arsip unduhan tidak memuat adb dan fastboot yang diperlukan.".into());
-            }
-        }
 
         if install_dir.exists() {
             fs::rename(&install_dir, &backup_dir).map_err(|error| {
@@ -345,6 +247,97 @@ pub fn install_platform_tools() -> Result<PathBuf, String> {
     let _ = fs::remove_file(&archive_path);
     let _ = remove_path(&stage_dir);
     result
+}
+
+fn extract_platform_tools_archive<R: Read + Seek>(
+    reader: R,
+    stage_dir: &Path,
+    executable_suffix: &str,
+) -> Result<(), String> {
+    let mut archive = zip::ZipArchive::new(reader)
+        .map_err(|error| format!("Arsip resmi Platform-Tools tidak valid: {error}"))?;
+    let mut extracted_size = 0_u64;
+    for index in 0..archive.len() {
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|error| format!("Isi arsip Platform-Tools tidak dapat dibaca: {error}"))?;
+        let archive_name = entry
+            .name()
+            .map_err(|error| format!("Nama file arsip Platform-Tools tidak valid: {error}"))?;
+        let path_without_trailing_separator =
+            archive_name.strip_suffix('/').unwrap_or(&archive_name);
+        let has_unsafe_component = archive_name.starts_with('/')
+            || archive_name.contains('\\')
+            || path_without_trailing_separator
+                .split('/')
+                .any(|component| component.is_empty())
+            || path_without_trailing_separator
+                .split('/')
+                .any(|component| component == "." || component == "..");
+        let relative_path = entry
+            .enclosed_name()
+            .filter(|path| {
+                !has_unsafe_component
+                    && path
+                        .components()
+                        .all(|component| matches!(component, Component::Normal(_)))
+            })
+            .ok_or_else(|| "Arsip Platform-Tools berisi jalur file yang tidak aman.".to_string())?
+            .to_path_buf();
+        if entry.is_symlink() {
+            return Err("Arsip Platform-Tools berisi tautan simbolik yang ditolak.".into());
+        }
+        extracted_size = extracted_size
+            .checked_add(entry.size())
+            .ok_or_else(|| "Ukuran ekstraksi arsip tidak valid.".to_string())?;
+        if extracted_size > MAX_PLATFORM_TOOLS_EXTRACTED_SIZE {
+            return Err("Ukuran hasil ekstraksi melebihi batas keamanan 512 MiB.".into());
+        }
+
+        let output_path = stage_dir.join(relative_path);
+        if entry.is_dir() {
+            fs::create_dir_all(&output_path)
+                .map_err(|error| format!("Folder Platform-Tools gagal diekstrak: {error}"))?;
+            continue;
+        }
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("Folder Platform-Tools gagal dibuat: {error}"))?;
+        }
+        let unix_mode = entry.unix_mode();
+        let mut output = File::create(&output_path)
+            .map_err(|error| format!("Berkas Platform-Tools gagal dibuat: {error}"))?;
+        std::io::copy(&mut entry, &mut output)
+            .map_err(|error| format!("Berkas Platform-Tools gagal diekstrak: {error}"))?;
+        output
+            .flush()
+            .map_err(|error| format!("Berkas Platform-Tools gagal disimpan: {error}"))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let filename = output_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default();
+            let mut mode = unix_mode.unwrap_or(0o644) & 0o777;
+            if filename == "adb" || filename == "fastboot" {
+                mode |= 0o111;
+            }
+            fs::set_permissions(&output_path, fs::Permissions::from_mode(mode))
+                .map_err(|error| format!("Izin berkas Platform-Tools gagal diatur: {error}"))?;
+        }
+    }
+
+    let staged_tools_dir = stage_dir.join("platform-tools");
+    for binary in [
+        format!("adb{executable_suffix}"),
+        format!("fastboot{executable_suffix}"),
+    ] {
+        if !staged_tools_dir.join(binary).is_file() {
+            return Err("Arsip unduhan tidak memuat adb dan fastboot yang diperlukan.".into());
+        }
+    }
+    Ok(())
 }
 
 fn platform_tools_data_dir() -> Result<PathBuf, String> {
@@ -425,7 +418,7 @@ fn parse_getvar(text: &str, key: &str) -> String {
             }
         }
     }
-    "—".to_string()
+    "tidak tersedia".to_string()
 }
 
 fn valid_serial(serial: &str) -> bool {
@@ -487,7 +480,7 @@ pub fn read_device_info(device: &Device, tools: &ToolLocator) -> Result<String, 
                 ("brand", "ro.product.brand"),
                 ("codename", "ro.product.device"),
                 ("SKU / hardware", "ro.boot.hardware.sku"),
-                ("region / variant", "ro.miui.region"),
+                ("MIUI region", "ro.miui.region"),
                 ("Android", "ro.build.version.release"),
                 ("build", "ro.build.display.id"),
                 ("bootloader locked (flash.locked)", "ro.boot.flash.locked"),
@@ -539,9 +532,10 @@ pub fn read_device_info(device: &Device, tools: &ToolLocator) -> Result<String, 
                 "Fastboot version: {}",
                 read_tool_version(tools, "fastboot", &["--version".into()])
             ));
-            lines.push("firmware SHA-256: tidak dihitung (belum memilih artefak)".into());
+            lines.push("SHA-256 berkas: belum dihitung (belum memilih berkas).".into());
             lines.push(
-                "official provenance: unknown (tidak ada katalog hash resmi terverifikasi)".into(),
+                "Sumber resmi: belum dapat dipastikan (katalog SHA-256 tepercaya belum tersedia)."
+                    .into(),
             );
             Ok(lines.join("\n"))
         }
@@ -559,7 +553,7 @@ pub fn read_device_info(device: &Device, tools: &ToolLocator) -> Result<String, 
                 ("secure", "secure"),
             ] {
                 let value = read_fastboot_var(tools, &device.serial, key);
-                let value = if value == "—" {
+                let value = if value == "tidak tersedia" {
                     "tidak terdeteksi (bukan bukti aman)".to_string()
                 } else {
                     value
@@ -575,8 +569,9 @@ pub fn read_device_info(device: &Device, tools: &ToolLocator) -> Result<String, 
                     "Fastboot version: {}",
                     read_tool_version(tools, "fastboot", &["--version".into()])
                 ),
-                "firmware SHA-256: tidak dihitung (belum memilih artefak)".into(),
-                "official provenance: unknown (tidak ada katalog hash resmi terverifikasi)".into(),
+                "SHA-256 berkas: belum dihitung (belum memilih berkas).".into(),
+                "Sumber resmi: belum dapat dipastikan (katalog SHA-256 tepercaya belum tersedia)."
+                    .into(),
             ]);
             Ok(lines.join("\n"))
         }
@@ -593,10 +588,10 @@ fn read_fastboot_var(tools: &ToolLocator, serial: &str, key: &str) -> String {
         &["-s".into(), serial.into(), "getvar".into(), key.into()],
         12,
     ) else {
-        return "—".into();
+        return "tidak tersedia".into();
     };
     if !tool_succeeded(&output) {
-        return "—".into();
+        return "tidak tersedia".into();
     }
     parse_getvar(&format!("{}\n{}", output.stdout, output.stderr), key)
 }
@@ -618,11 +613,14 @@ fn tool_succeeded(output: &ToolOutput) -> bool {
     output.code == Some(0)
 }
 
-pub fn reboot_device(device: &Device, action: &str, tools: &ToolLocator) -> Result<String, String> {
+fn build_reboot_command(
+    device: &Device,
+    action: &str,
+) -> Result<(&'static str, Vec<String>), String> {
     if !valid_serial(&device.serial) {
         return Err("Serial perangkat tidak valid.".to_string());
     }
-    let (tool, args): (&str, Vec<String>) = match (device.mode.as_str(), action) {
+    let command = match (device.mode.as_str(), action) {
         ("adb", "recovery") if device.state == "device" => (
             "adb",
             vec![
@@ -660,6 +658,11 @@ pub fn reboot_device(device: &Device, action: &str, tools: &ToolLocator) -> Resu
         }
         _ => return Err("Aksi reboot tidak dikenal.".into()),
     };
+    Ok(command)
+}
+
+pub fn reboot_device(device: &Device, action: &str, tools: &ToolLocator) -> Result<String, String> {
+    let (tool, args) = build_reboot_command(device, action)?;
     let output = tools.run(tool, &args, 15)?;
     let combined = format!("{}{}", output.stdout, output.stderr)
         .trim()
@@ -839,7 +842,7 @@ pub fn inspect_rom_folder(path: &Path) -> Result<RomInspection, String> {
         codename_hint,
         entries: entries.into_iter().take(150).collect(),
         script_hint,
-        provenance_status: "unknown — tidak ada katalog hash resmi terverifikasi".into(),
+        provenance_status: "Belum dapat dipastikan: katalog SHA-256 resmi belum tersedia.".into(),
         verified_catalog_match: false,
         warning: "SHA-256 lokal hanya sidik jari berkas. Sumber resmi, kecocokan perangkat/wilayah, dan keamanan firmware tidak dipastikan. Tidak ada berkas yang dijalankan atau dikirim ke ponsel.".into(),
     })
@@ -848,15 +851,259 @@ pub fn inspect_rom_folder(path: &Path) -> Result<RomInspection, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+    use std::io::Cursor;
+    use std::sync::Mutex;
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct RecordedCall {
+        program: PathBuf,
+        args: Vec<String>,
+        timeout: Duration,
+    }
+
+    #[derive(Default)]
+    struct MockRunner {
+        calls: Mutex<Vec<RecordedCall>>,
+        stdout_by_program: Mutex<HashMap<String, String>>,
+    }
+
+    impl ProcessRunner for MockRunner {
+        fn run(
+            &self,
+            program: &Path,
+            args: &[String],
+            timeout: Duration,
+        ) -> Result<ProcessOutput, String> {
+            let name = program
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_string();
+            self.calls.lock().unwrap().push(RecordedCall {
+                program: program.to_path_buf(),
+                args: args.to_vec(),
+                timeout,
+            });
+            let stdout = self
+                .stdout_by_program
+                .lock()
+                .unwrap()
+                .get(&name)
+                .cloned()
+                .unwrap_or_default();
+            Ok(ProcessOutput {
+                stdout,
+                stderr: String::new(),
+                code: Some(0),
+            })
+        }
+    }
+
+    fn test_temp_dir(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = env::temp_dir().join(format!("droidnow-{label}-{unique}"));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    fn fake_tool_directory() -> PathBuf {
+        let path = test_temp_dir("mock-platform-tools");
+        let suffix = if cfg!(target_os = "windows") {
+            ".exe"
+        } else {
+            ""
+        };
+        for name in ["adb", "fastboot"] {
+            fs::write(path.join(format!("{name}{suffix}")), b"mock executable").unwrap();
+        }
+        path
+    }
+
+    fn mock_tools(runner: Arc<MockRunner>) -> (ToolLocator, PathBuf) {
+        let directory = fake_tool_directory();
+        let mut tools = ToolLocator::with_runner(runner);
+        tools.set_directory(directory.clone()).unwrap();
+        (tools, directory)
+    }
+
+    fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        for (name, contents) in entries {
+            writer
+                .start_file(
+                    *name,
+                    SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored),
+                )
+                .unwrap();
+            writer.write_all(contents).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
 
     #[test]
-    fn parses_adb_online_and_unauthorized_devices() {
-        let devices = parse_adb_devices("List of devices attached\nABC123 device product:rolex model:Redmi_4A transport_id:1\nXYZ unauthorized usb:1-2\n* daemon started successfully\n");
-        assert_eq!(devices.len(), 2);
+    fn parses_adb_online_offline_and_unauthorized_devices() {
+        let devices = parse_adb_devices("List of devices attached\nABC123 device product:rolex model:Redmi_4A transport_id:1\nOFF456 offline transport_id:2\nXYZ unauthorized usb:1-2\n* daemon started successfully\n");
+        assert_eq!(devices.len(), 3);
         assert_eq!(devices[0].serial, "ABC123");
         assert_eq!(devices[0].state, "device");
         assert!(devices[0].details.contains("product:rolex"));
-        assert_eq!(devices[1].state, "unauthorized");
+        assert_eq!(devices[1].serial, "OFF456");
+        assert_eq!(devices[1].state, "offline");
+        assert_eq!(devices[2].state, "unauthorized");
+    }
+
+    #[test]
+    fn mock_process_runner_drives_adb_scan_without_hardware() {
+        let runner = Arc::new(MockRunner::default());
+        runner.stdout_by_program.lock().unwrap().insert(
+            "adb".into(),
+            "List of devices attached\nOFF456 offline transport_id:2\nXYZ unauthorized usb:1-2\n"
+                .into(),
+        );
+        let (tools, directory) = mock_tools(runner.clone());
+        let result = scan_devices(&tools);
+        let _ = fs::remove_dir_all(&directory);
+
+        assert_eq!(result.devices.len(), 2);
+        assert_eq!(result.devices[0].state, "offline");
+        assert_eq!(result.devices[1].state, "unauthorized");
+        assert_eq!(runner.calls.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn reboot_dispatch_uses_only_explicit_safe_argument_combinations() {
+        let runner = Arc::new(MockRunner::default());
+        let (tools, directory) = mock_tools(runner.clone());
+        let cases = [
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "adb".into(),
+                    state: "device".into(),
+                    details: String::new(),
+                },
+                "recovery",
+                "adb",
+                vec!["-s", "SERIAL-1", "reboot", "recovery"],
+            ),
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "adb".into(),
+                    state: "device".into(),
+                    details: String::new(),
+                },
+                "bootloader",
+                "adb",
+                vec!["-s", "SERIAL-1", "reboot", "bootloader"],
+            ),
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "adb".into(),
+                    state: "device".into(),
+                    details: String::new(),
+                },
+                "system",
+                "adb",
+                vec!["-s", "SERIAL-1", "reboot"],
+            ),
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "fastboot".into(),
+                    state: "fastboot".into(),
+                    details: String::new(),
+                },
+                "system",
+                "fastboot",
+                vec!["-s", "SERIAL-1", "reboot"],
+            ),
+        ];
+
+        for (device, action, _, _) in &cases {
+            reboot_device(device, action, &tools).unwrap();
+        }
+        let calls = runner.calls.lock().unwrap();
+        assert_eq!(calls.len(), cases.len());
+        for (call, (_, _, expected_tool, expected_args)) in calls.iter().zip(cases.iter()) {
+            let expected_name = if cfg!(target_os = "windows") {
+                format!("{expected_tool}.exe")
+            } else {
+                (*expected_tool).to_string()
+            };
+            assert_eq!(
+                call.program.file_name().unwrap().to_string_lossy(),
+                expected_name
+            );
+            assert_eq!(
+                call.args,
+                expected_args
+                    .iter()
+                    .map(|arg| (*arg).to_string())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(call.timeout, Duration::from_secs(15));
+        }
+        drop(calls);
+
+        for (device, action) in [
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "fastboot".into(),
+                    state: "fastboot".into(),
+                    details: String::new(),
+                },
+                "recovery",
+            ),
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "fastboot".into(),
+                    state: "fastboot".into(),
+                    details: String::new(),
+                },
+                "bootloader",
+            ),
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "adb".into(),
+                    state: "unauthorized".into(),
+                    details: String::new(),
+                },
+                "recovery",
+            ),
+            (
+                Device {
+                    serial: "SERIAL-1".into(),
+                    mode: "adb".into(),
+                    state: "device".into(),
+                    details: String::new(),
+                },
+                "erase",
+            ),
+            (
+                Device {
+                    serial: "--help".into(),
+                    mode: "adb".into(),
+                    state: "device".into(),
+                    details: String::new(),
+                },
+                "system",
+            ),
+        ] {
+            assert!(reboot_device(&device, action, &tools).is_err());
+        }
+        assert_eq!(runner.calls.lock().unwrap().len(), cases.len());
+        let _ = fs::remove_dir_all(directory);
     }
 
     #[test]
@@ -874,7 +1121,7 @@ mod tests {
         let text = "(bootloader) product: rolex\n(bootloader) unlocked: no\n";
         assert_eq!(parse_getvar(text, "product"), "rolex");
         assert_eq!(parse_getvar(text, "unlocked"), "no");
-        assert_eq!(parse_getvar(text, "missing"), "—");
+        assert_eq!(parse_getvar(text, "missing"), "tidak tersedia");
     }
 
     #[test]
@@ -942,7 +1189,36 @@ mod tests {
             Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
         );
         assert!(!inspection.verified_catalog_match);
-        assert!(inspection.provenance_status.starts_with("unknown"));
+        assert!(inspection
+            .provenance_status
+            .starts_with("Belum dapat dipastikan"));
         assert!(inspection.warning.contains("tidak dipastikan"));
+    }
+
+    #[test]
+    fn malformed_platform_tools_archive_is_rejected() {
+        let root = test_temp_dir("malformed-zip");
+        let stage = root.join("stage");
+        fs::create_dir(&stage).unwrap();
+        let error =
+            extract_platform_tools_archive(Cursor::new(b"not a zip archive".to_vec()), &stage, "")
+                .unwrap_err();
+        assert!(error.contains("tidak valid"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn path_traversal_platform_tools_archives_are_rejected_without_writing_outside_stage() {
+        for malicious_name in ["../escape.txt", "platform-tools/../../escape.txt"] {
+            let root = test_temp_dir("traversal-zip");
+            let stage = root.join("stage");
+            fs::create_dir(&stage).unwrap();
+            let bytes = zip_bytes(&[(malicious_name, b"outside")]);
+            let error = extract_platform_tools_archive(Cursor::new(bytes), &stage, "")
+                .expect_err("archive traversal must be rejected");
+            assert!(error.contains("jalur file yang tidak aman"));
+            assert!(!root.join("escape.txt").exists());
+            let _ = fs::remove_dir_all(root);
+        }
     }
 }

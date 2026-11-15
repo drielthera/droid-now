@@ -45,42 +45,44 @@ pub fn evaluate_gate(operation: Operation, evidence: &GateEvidence) -> GateDecis
             allowed: true,
             status: "read_only_only".into(),
             reasons: vec![
-                "Hanya probe read-only yang diizinkan; identitas atau dukungan model yang tidak pasti tidak memperluas dukungan.".into(),
-                "Diagnosis tidak memberi izin otomatis untuk prepare atau operasi yang mengubah perangkat.".into(),
+                "Pemeriksaan hanya menjalankan perintah baca-saja; identitas yang tidak pasti tidak memperluas cakupan dukungan.".into(),
+                "Hasil diagnosis tidak mengizinkan persiapan atau perubahan pada perangkat.".into(),
             ],
         };
     }
 
     let mut reasons = vec![
-        "Operasi ini tidak tersedia pada milestone P0; tidak ada perintah tulis yang dijalankan."
+        "Operasi ini belum tersedia. DroidNow tidak menjalankan perintah yang mengubah perangkat."
             .into(),
     ];
     if evidence.identity_conflict {
-        reasons.push("STOP: metadata identitas perangkat berkonflik.".into());
+        reasons.push("Berhenti: data identitas perangkat berkonflik.".into());
     }
     if !evidence.identity_checked {
-        reasons.push("STOP: pemeriksaan silang identitas belum lengkap.".into());
+        reasons.push("Berhenti: pemeriksaan silang identitas belum selesai.".into());
     }
     if evidence
         .brand
         .as_deref()
         .is_none_or(|brand| !brand.eq_ignore_ascii_case("Xiaomi"))
     {
-        reasons.push("STOP: merek belum cocok eksplisit dengan policy adapter Xiaomi.".into());
+        reasons.push(
+            "Berhenti: merek perangkat belum cocok dengan cakupan validasi yang tersedia.".into(),
+        );
     }
     if evidence.codename.as_deref().is_none_or(str::is_empty) {
-        reasons.push("STOP: codename tidak terbaca.".into());
+        reasons.push("Berhenti: kode perangkat tidak terbaca.".into());
     }
     if !evidence.rollback_index_known {
         reasons.push(
-            "STOP: rollback index tidak diketahui; nilai kosong bukan bukti bebas ARB.".into(),
+            "Berhenti: rollback index tidak diketahui; nilai kosong bukan bukti aman.".into(),
         );
     }
     if !evidence.artifact_hash_verified {
-        reasons.push("STOP: hash artefak belum cocok dengan katalog tepercaya.".into());
+        reasons.push("Berhenti: SHA-256 berkas belum cocok dengan katalog tepercaya.".into());
     }
     if !evidence.official_provenance_verified {
-        reasons.push("STOP: provenance resmi belum dibuktikan.".into());
+        reasons.push("Berhenti: sumber resmi belum dapat dipastikan.".into());
     }
     GateDecision {
         operation: operation_name(operation).into(),
@@ -127,31 +129,31 @@ pub struct SupportMatrix {
 pub fn support_matrix() -> SupportMatrix {
     SupportMatrix {
         version: SUPPORT_MATRIX_VERSION,
-        policy: "Xiaomi diagnostics only; never infer firmware compatibility or write eligibility from a name, version, region label, signature, or empty getvar result.",
+        policy: "Validasi model saat ini terbatas pada Xiaomi Redmi 4A. Jangan menyimpulkan kecocokan firmware atau izin perubahan perangkat dari nama, versi, wilayah, tanda tangan, maupun nilai getvar yang kosong.",
         targets: vec![SupportedTarget {
             brand: "Xiaomi",
             model: "Redmi 4A",
             codename: "rolex",
-            support_scope: "limited read-only diagnostics; target identity must still be observed on-device",
-            supported_regions: vec!["unknown / not validated"],
+            support_scope: "diagnostik baca-saja terbatas; identitas perangkat tetap harus dibaca langsung dari perangkat",
+            supported_regions: vec!["belum divalidasi"],
             firmware_catalog_verified_entries: 0,
-            arb_status: "indeterminate; empty fastboot getvar anti is not evidence of no ARB",
-            avb_status: "indeterminate; not remotely attested",
+            arb_status: "belum dapat dipastikan; getvar anti yang kosong bukan bukti bebas anti-rollback",
+            avb_status: "belum dapat dipastikan melalui pemeriksaan ini",
             write_operations_supported: false,
         }],
-        other_devices: "Generic ADB/Fastboot discovery may be shown, but no OEM/model support or write capability is claimed.",
+        other_devices: "Perangkat Android lain dapat terdeteksi melalui ADB/Fastboot, tetapi model dan dukungan firmware belum divalidasi. Operasi tulis tidak didukung.",
     }
 }
 
 pub fn stop_conditions() -> Vec<&'static str> {
     vec![
-        "Identitas perangkat tidak terbaca atau metadata saling bertentangan.",
-        "Model, SKU/codename, hardware provenance, region, atau variant tidak cocok secara eksplisit.",
-        "Firmware/artifact tidak cocok atau SHA-256 tidak sama dengan nilai pembanding tepercaya.",
-        "Rollback index tidak dapat dinilai; getvar anti yang kosong bukan bukti aman.",
-        "Toolchain tidak stabil, timeout, interupsi, atau koneksi terputus: jangan retry otomatis; kembali ke probe read-only.",
-        "Pemulihan meminta bypass Mi Account, activation lock, unlock timer, ARB, EDL authorization, atau kontrol OEM.",
-        "Hanya EDL/9008 yang tersedia: hentikan dan eskalasi ke servis resmi/authorized.",
+        "Identitas perangkat tidak terbaca atau data dari beberapa sumber berbeda.",
+        "Model, SKU/kode perangkat, asal perangkat keras, wilayah, atau varian belum cocok secara jelas.",
+        "Berkas firmware tidak cocok dengan acuan tepercaya atau nilai SHA-256 berbeda.",
+        "Indeks anti-rollback tidak dapat dipastikan; getvar anti yang kosong bukan bukti aman.",
+        "Tools tidak stabil, waktu tunggu habis, proses terhenti, atau koneksi terputus. Jangan ulangi otomatis; kembali ke pemeriksaan baca-saja.",
+        "Pemulihan memerlukan bypass Mi Account, kunci aktivasi, masa tunggu unlock, anti-rollback, otorisasi EDL, atau kendali OEM.",
+        "Jika hanya mode EDL/9008 tersedia, hentikan dan hubungi pusat servis resmi.",
     ]
 }
 
@@ -219,7 +221,6 @@ fn is_unknown(value: &str) -> bool {
     let value = value.trim();
     let lower = value.to_ascii_lowercase();
     value.is_empty()
-        || value == "—"
         || lower.contains("unknown")
         || lower.contains("indeterminate")
         || lower.contains("tidak terbaca")
@@ -288,10 +289,10 @@ fn evidence_from_info(mode: &str, serial: &str, info: Option<&str>) -> DeviceEvi
                     "adb version (local toolchain)"
                 } else if lower_field == "fastboot version" {
                     "fastboot --version (local toolchain)"
-                } else if lower_field == "firmware sha-256" {
-                    "local SHA-256 calculation; no trusted comparison configured"
-                } else if lower_field == "official provenance" {
-                    "verified provenance catalog (currently empty)"
+                } else if lower_field == "sha-256 berkas" {
+                    "perhitungan SHA-256 lokal; belum ada pembanding tepercaya"
+                } else if lower_field == "sumber resmi" {
+                    "katalog SHA-256 resmi, yang belum tersedia"
                 } else {
                     device_source
                 };
@@ -315,6 +316,7 @@ fn evidence_from_info(mode: &str, serial: &str, info: Option<&str>) -> DeviceEvi
         "codename",
         "product",
         "SKU / hardware",
+        "MIUI region",
         "region / variant",
         "Android",
         "build",
@@ -326,8 +328,8 @@ fn evidence_from_info(mode: &str, serial: &str, info: Option<&str>) -> DeviceEvi
         "rollback index (anti)",
         "ADB version",
         "Fastboot version",
-        "firmware SHA-256",
-        "official provenance",
+        "SHA-256 berkas",
+        "Sumber resmi",
     ] {
         if !fields
             .iter()
@@ -475,7 +477,7 @@ mod tests {
         assert_eq!(target.codename, "rolex");
         assert_eq!(target.firmware_catalog_verified_entries, 0);
         assert!(!target.write_operations_supported);
-        assert!(target.arb_status.contains("indeterminate"));
+        assert!(target.arb_status.contains("belum dapat dipastikan"));
     }
 
     #[test]
@@ -499,7 +501,7 @@ mod tests {
             Operation::PartitionWrite,
         ] {
             let decision = evaluate_gate(operation, &evidence);
-            assert!(!decision.allowed, "{operation:?} must remain blocked in P0");
+            assert!(!decision.allowed, "{operation:?} must remain unavailable");
             assert_eq!(decision.status, "blocked_fail_closed");
         }
     }
@@ -516,7 +518,7 @@ mod tests {
         let reasons = decision.reasons.join(" ");
         assert!(reasons.contains("berkonflik"));
         assert!(reasons.contains("rollback index tidak diketahui"));
-        assert!(reasons.contains("provenance resmi"));
+        assert!(reasons.contains("sumber resmi belum dapat dipastikan"));
     }
 
     #[test]
@@ -547,14 +549,15 @@ mod tests {
                 hash_error: None,
             }],
             script_hint: "skrip tidak terlihat".into(),
-            provenance_status: "unknown — katalog tepercaya kosong".into(),
+            provenance_status: "Belum dapat dipastikan: katalog SHA-256 tepercaya belum tersedia."
+                .into(),
             verified_catalog_match: false,
             warning: "Hash lokal bukan bukti sumber resmi".into(),
         };
         let archive = create_case_archive(
             std::slice::from_ref(&device),
             Some(&device),
-            Some("product: rolex\nrollback index (anti): —\nIMEI: 123456789012345"),
+            Some("product: rolex\nrollback index (anti): tidak tersedia\nIMEI: 123456789012345"),
             Some(&rom),
             &["Ditemukan perangkat ABC1234567".into()],
         );
@@ -562,7 +565,7 @@ mod tests {
         assert!(!json.contains("ABC1234567"));
         assert!(!json.contains("123456789012345"));
         assert!(json.contains("AB****67"));
-        assert!(json.contains("indeterminate"));
+        assert!(json.contains("belum dapat dipastikan"));
         assert!(json.contains("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"));
         assert!(json.contains("trusted_catalog_match\":false"));
         assert!(archive.gate_decisions.iter().any(|decision| {

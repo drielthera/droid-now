@@ -11,8 +11,9 @@
 3. **Tidak ada inferensi berlebihan.** Nomor MIUI, tanggal, API level, label `Global`/`China`, boot normal, atau signature/VBMeta saja tidak membuktikan firmware resmi dan cocok. Pisahkan hasil `signature_valid`, `vbmeta_consistent`, `attestation_verified`, dan `official_provenance`.
 4. **Anti-rollback adalah hard stop.** AVB dapat menolak image dengan `rollback_index` lebih rendah dari `stored_rollback_index`; indeks tersimpan diperbarui sebelum boot. [1] Karena matriks Xiaomi lintas model/region tidak tersedia, `getvar anti` yang kosong bukan bukti bahwa perangkat bebas ARB.
 5. **Relock paling berisiko.** Relock hanya boleh tersedia setelah kecocokan stock dibuktikan eksplisit untuk hardware, codename, region, build, hash, partisi, dan provenance. Jika ada keraguan, sediakan tombol **Berhenti dan eskalasi**.
-6. **Tidak ada bypass.** Unlock timer, Mi Account, Find Device, activation lock, ARB, EDL authorization, atau kontrol keamanan OEM tidak boleh diakali. EDL/9008 diperlakukan sebagai jalur hardware/servis, bukan izin flash.
-7. **Privasi dan audit lokal.** Arsipkan manifest, hash, metadata, keputusan gate, log, dan hasil pascarepair dengan IMEI/serial/account identifier dimasking; jangan menyimpan identifier mentah sebagai provenance.
+6. **EDL/test point adalah opsi pemulihan terakhir, bukan jalur universal.** Pada sebagian perangkat dengan bootloader terkunci, flashing Fastboot normal tidak tersedia; bila pemulihan Android/Fastboot normal juga tidak mungkin, EDL/test point dapat menjadi jalur terakhir. Deteksi Qualcomm 9008, bila tersedia, hanya observasi baca-saja dan bukan izin flash. Penulisan EDL tidak termasuk P0; kelak hanya boleh lewat alur khusus perangkat/SoC dengan paket dan programmer terverifikasi serta otorisasi vendor yang sah. Jangan memberi instruksi pin test point generik.
+7. **Tidak ada bypass.** Unlock timer, Mi Account, Find Device, activation lock, ARB, EDL authorization, atau kontrol keamanan OEM tidak boleh diakali.
+8. **Privasi dan audit lokal.** Arsipkan manifest, hash, metadata, keputusan gate, log, dan hasil pascarepair dengan IMEI/serial/account identifier dimasking; jangan menyimpan identifier mentah sebagai provenance.
 
 ## Urutan prioritas dan status fase
 
@@ -71,9 +72,9 @@ Mendapatkan gambaran perangkat secara read-only dan menyediakan wizard gejala.
 - Wizard gejala:
   - **Fastboot saja:** force-restart resmi dengan tombol daya lebih dari 10 detik; bila tetap gagal, eskalasi service center [4].
   - **Tool/driver/script error:** cek kabel, port langsung tanpa hub, driver, platform-tools, dan log; jangan retry otomatis setelah timeout.
-  - **`super`/partisi gagal:** hentikan, validasi mode dan image; jangan memakai raw partition atau EDL/auth bypass.
+  - **`super`/partisi gagal:** hentikan dan validasi mode serta image; jangan memakai raw partition, flashing EDL, atau bypass otorisasi.
   - **`This MIUI version can't be installed on this device`, `Erase is not allowed in Lock State`, `system has been destroyed`, atau loop Fastboot:** jangan force-flash; pilih firmware tepat atau eskalasi.
-  - **Layar hitam/EDL saja:** hentikan dan rujuk servis resmi/authorized.
+  - **Layar hitam/EDL saja:** deteksi Qualcomm 9008, jika tersedia, hanya sebagai pemeriksaan baca-saja. Pada sebagian perangkat ber-bootloader terkunci, Fastboot tidak menyediakan jalur flash normal; bila Android/Fastboot normal tidak dapat digunakan, EDL/test point dapat dipertimbangkan sebagai pemulihan terakhir melalui servis resmi/authorized. Jangan melakukan flashing EDL pada P0 atau memberi pin test point generik.
 - Minta baterai minimum konservatif, cegah suspend/sleep, dan tampilkan larangan mencabut kabel saat operasi kelak.
 
 ### Keluaran
@@ -136,7 +137,7 @@ Menyelesaikan diagnosis dan pemulihan resmi yang tidak menurunkan rollback index
 
 ### Kontrol risiko
 
-Bootloader terkunci tidak mengizinkan reflashing partisi; operasi unlock/lock dapat melakukan factory reset [8]. Jika hanya EDL yang tersisa, DroidNow berhenti; programmer Firehose yang bertanda tangan OEM dan otorisasi yang tepat diperlukan pada jalur Qualcomm [9].
+Bootloader terkunci dapat membuat reflashing melalui Fastboot tidak tersedia; operasi unlock/lock juga dapat melakukan factory reset [8]. Jika Android/Fastboot normal tidak tersedia dan EDL menjadi satu-satunya jalur, perlakukan EDL/test point sebagai opsi pemulihan terakhir melalui servis resmi/authorized. Deteksi 9008 tetap baca-saja dan tidak memberi izin untuk menulis. Penulisan EDL berada di luar P0 dan, bila kelak dipertimbangkan, wajib device/SoC-specific dengan programmer Firehose dan paket bertanda tangan/terverifikasi serta otorisasi vendor yang tepat [9]; tidak boleh universal, menyertakan pin test point generik, atau melewati otorisasi akun/OEM.
 
 ---
 
@@ -151,13 +152,13 @@ Memulihkan ROM resmi hanya pada pasangan target yang terverifikasi.
 - Model/SKU/codename, hardware provenance, region/variant, build target, mode, slot, dan paket cocok eksplisit.
 - Hash dan provenance paket lulus katalog; rollback index image tidak lebih rendah dari indeks perangkat untuk lokasi yang diketahui.
 - Backup sah memiliki manifest/checksum dan pengguna memahami risiko kehilangan data.
-- Jalur resmi dapat menolak mismatch; tidak memakai TWRP/jalur recovery yang melewati pemeriksaan rollback.
+- Metode yang digunakan didukung OEM untuk model, state bootloader, dan paket yang tepat; jalur resmi dapat menolak mismatch. Tidak memakai TWRP/jalur recovery yang melewati pemeriksaan rollback.
 
 ### Pekerjaan
 
 - Tampilkan diff perangkat-versus-paket sebelum write.
 - Minta konfirmasi eksplisit untuk wipe/data loss dan risiko interupsi.
-- Tulis dengan tool resmi/terverifikasi, tanpa retry otomatis setelah timeout.
+- Gunakan hanya metode OEM yang didukung untuk firmware tepat yang sudah diverifikasi, setelah prasyarat status bootloader terpenuhi melalui alur resmi; tanpa retry otomatis setelah timeout.
 - Setelah selesai, verifikasi model/codename/region/build, AVB/bootloader, slot, kemampuan boot normal, beberapa reboot, storage/radio health, dan hash/log.
 - **Jangan relock otomatis pada fase ini.**
 
@@ -169,27 +170,27 @@ Memulihkan ROM resmi hanya pada pasangan target yang terverifikasi.
 
 ### Kontrol risiko
 
-Rollback image lebih rendah dapat ditolak bootloader resmi; jalur pihak ketiga yang tidak memvalidasi indeks dapat menyebabkan bootloop atau hard-brick [1][10]. Kasus Xiaomi era MIUI 10 menunjukkan downgrade tertentu dapat berujung brick dan service center [10]. Kasus modern komunitas juga melaporkan mismatch region setelah relock; itu sinyal risiko, bukan bukti universal [11].
+Rollback image lebih rendah dapat ditolak bootloader resmi; jalur pihak ketiga yang tidak memvalidasi indeks dapat menyebabkan bootloop atau hard-brick [1][10]. Kasus Xiaomi era MIUI 10 menunjukkan downgrade tertentu dapat berujung brick dan service center [10]. Kasus modern komunitas juga melaporkan mismatch region setelah relock; itu sinyal risiko, bukan bukti universal [11]. Jika bootloader terkunci membuat flashing Fastboot tidak tersedia, jangan memintas proteksi: gunakan alur UBL resmi Xiaomi bila diwajibkan oleh metode OEM, lalu hanya flash paket persis yang terverifikasi dengan metode OEM yang didukung. Bila pemulihan Android/Fastboot resmi tidak tersedia, EDL/test point tetap opsi terakhir yang memerlukan programmer/firmware khusus perangkat dan otorisasi servis vendor; deteksi 9008 bukan izin menulis.
 
 ---
 
 ## Fase 5 — Unlock bootloader
 
 ### Status
-**Eksperimental, opt-in, bukan jalur pemulihan data.**
+**Eksperimental, opt-in, bukan jalur pemulihan data; belum diimplementasikan. P0 tetap baca-saja.**
 
 ### Prasyarat
 
 - Perangkat non-produksi atau data memang boleh hilang.
 - Backup sah telah diuji dengan manifest/checksum; DroidNow tidak menjanjikan pemulihan data terenkripsi/lockscreen.
 - Konfirmasi eksplisit bahwa unlock menghapus data; tidak ada default tersembunyi.
-- Mi Account, binding perangkat, SIM/network, Find Device, region, eligibility, dan masa tunggu resmi telah diverifikasi; timer tidak boleh diakali.
+- Gunakan alur UBL resmi Xiaomi saat ini: masuk dengan Mi Account sendiri, lakukan pairing/binding akun dan perangkat melalui mekanisme resmi, lalu penuhi eligibility, ketentuan SIM/network/region, serta masa tunggu yang ditampilkan untuk perangkat itu. Timer, akun, pairing, atau otorisasi tidak boleh diakali.
 - Model/codename/region/version/hash dan status bootloader cocok.
 
 ### Pekerjaan dan keluaran
 
-- Tampilkan masa tunggu dan ketidakpastian kebijakan per model/region.
-- Jalankan hanya alur resmi setelah konfirmasi kedua.
+- Tampilkan syarat eligibility/pairing dan masa tunggu resmi beserta ketidakpastian kebijakan per model/region; jangan mengasumsikan durasi tetap.
+- Jalankan hanya alur UBL resmi Xiaomi setelah konfirmasi kedua yang menyebutkan dengan jelas bahwa data pengguna akan dihapus; jangan bypass Mi Account, Find Device, activation lock, atau kontrol OEM.
 - Verifikasi pasca-unlock: bootloader state, Verified Boot warning/state, fingerprint, storage/radio health, dan status akun.
 - Simpan unlock report dan arsip kasus.
 
