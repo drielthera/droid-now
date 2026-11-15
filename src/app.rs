@@ -7,22 +7,28 @@ use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-const BG: Color32 = Color32::from_rgb(10, 11, 13);
-const PANEL: Color32 = Color32::from_rgb(25, 27, 30);
-const PANEL_DARK: Color32 = Color32::from_rgb(19, 22, 25);
-const LINE: Color32 = Color32::from_rgb(48, 52, 58);
-const TEXT: Color32 = Color32::from_rgb(240, 240, 241);
-const MUTED: Color32 = Color32::from_rgb(188, 189, 194);
-const TEAL: Color32 = Color32::from_rgb(73, 201, 177);
-const VIOLET: Color32 = Color32::from_rgb(131, 105, 132);
-const AMBER: Color32 = Color32::from_rgb(225, 187, 112);
-const RED: Color32 = Color32::from_rgb(235, 127, 136);
-const CONTROL_EDGE: Color32 = Color32::from_rgb(83, 88, 94);
+const BG: Color32 = Color32::from_rgb(244, 245, 243);
+const SIDEBAR: Color32 = Color32::from_rgb(248, 249, 247);
+const PANEL: Color32 = Color32::from_rgb(255, 255, 255);
+const PANEL_DARK: Color32 = Color32::from_rgb(248, 249, 247);
+const LINE: Color32 = Color32::from_rgb(228, 231, 227);
+const TEXT: Color32 = Color32::from_rgb(32, 36, 34);
+const MUTED: Color32 = Color32::from_rgb(91, 99, 95);
+const TEAL: Color32 = Color32::from_rgb(22, 121, 106);
+const TEAL_PALE: Color32 = Color32::from_rgb(232, 244, 240);
+const HOVER: Color32 = Color32::from_rgb(240, 243, 240);
+const ACTION: Color32 = Color32::from_rgb(24, 27, 25);
+const AMBER: Color32 = Color32::from_rgb(129, 91, 28);
+const RED: Color32 = Color32::from_rgb(163, 54, 54);
+const CONTROL_EDGE: Color32 = Color32::from_rgb(194, 201, 196);
 
 #[derive(Clone, Copy)]
 enum Icon {
     Scan,
     Device,
+    Activity,
+    Home,
+    Help,
     Shield,
     Folder,
     Info,
@@ -74,6 +80,32 @@ fn paint_icon(painter: &egui::Painter, kind: Icon, rect: egui::Rect, color: Colo
             line(point(0.40, 0.20), point(0.60, 0.20));
             painter.circle_filled(point(0.50, 0.81), stroke.width * 0.62, color);
         }
+        Icon::Activity => {
+            line(point(0.10, 0.55), point(0.28, 0.55));
+            line(point(0.28, 0.55), point(0.41, 0.27));
+            line(point(0.41, 0.27), point(0.57, 0.75));
+            line(point(0.57, 0.75), point(0.71, 0.44));
+            line(point(0.71, 0.44), point(0.90, 0.44));
+        }
+        Icon::Home => {
+            line(point(0.14, 0.46), point(0.50, 0.16));
+            line(point(0.50, 0.16), point(0.86, 0.46));
+            line(point(0.24, 0.42), point(0.24, 0.83));
+            line(point(0.76, 0.42), point(0.76, 0.83));
+            line(point(0.24, 0.83), point(0.76, 0.83));
+            line(point(0.43, 0.83), point(0.43, 0.59));
+            line(point(0.57, 0.83), point(0.57, 0.59));
+        }
+        Icon::Help => {
+            painter.circle_stroke(point(0.50, 0.50), unit * 0.39, stroke);
+            painter.text(
+                point(0.50, 0.50),
+                Align2::CENTER_CENTER,
+                "?",
+                FontId::proportional(unit * 0.62),
+                color,
+            );
+        }
         Icon::Shield => {
             closed(vec![
                 point(0.50, 0.10),
@@ -121,17 +153,22 @@ fn draw_icon_button(
     primary: bool,
 ) -> egui::Response {
     let text_color = if primary {
-        Color32::from_rgb(14, 35, 32)
+        Color32::WHITE
     } else if enabled {
         TEXT
     } else {
         MUTED
     };
-    let mut button = egui::Button::new(RichText::new(label).size(11.0).color(text_color))
-        .min_size(egui::vec2(width, height))
-        .corner_radius(egui::CornerRadius::same(5));
+    let label_size = if width < 155.0 { 10.0 } else { 12.0 };
+    let mut button = egui::Button::new(
+        RichText::new(label)
+            .size(label_size)
+            .color(Color32::TRANSPARENT),
+    )
+    .min_size(egui::vec2(width, height))
+    .corner_radius(egui::CornerRadius::same(5));
     if primary {
-        button = button.fill(TEAL);
+        button = button.fill(ACTION);
     } else if !enabled {
         button = button.fill(PANEL_DARK);
     }
@@ -145,6 +182,71 @@ fn draw_icon_button(
         ),
         text_color,
     );
+    ui.painter().text(
+        egui::pos2(response.rect.left() + 34.0, response.rect.center().y),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(label_size),
+        text_color,
+    );
+    response
+}
+
+fn sidebar_item(
+    ui: &mut egui::Ui,
+    id: &'static str,
+    icon: Icon,
+    label: &str,
+    selected: bool,
+) -> egui::Response {
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 36.0), egui::Sense::hover());
+    let response = ui.interact(
+        rect,
+        ui.make_persistent_id(("sidebar", id)),
+        egui::Sense::click(),
+    );
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    let fill = if selected {
+        TEAL_PALE
+    } else if response.hovered() {
+        HOVER
+    } else {
+        SIDEBAR
+    };
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(5), fill);
+    if selected {
+        ui.painter().rect_filled(
+            egui::Rect::from_min_size(rect.left_top(), egui::vec2(3.0, rect.height())),
+            egui::CornerRadius::same(2),
+            TEAL,
+        );
+    }
+    paint_icon(
+        ui.painter(),
+        icon,
+        egui::Rect::from_center_size(
+            egui::pos2(rect.left() + 25.0, rect.center().y),
+            egui::vec2(17.0, 17.0),
+        ),
+        if selected { TEAL } else { MUTED },
+    );
+    ui.painter().text(
+        egui::pos2(rect.left() + 48.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(12.0),
+        if selected { TEXT } else { MUTED },
+    );
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            rect,
+            egui::CornerRadius::same(5),
+            Stroke::new(2.0_f32, TEAL),
+            egui::StrokeKind::Inside,
+        );
+    }
     response
 }
 
@@ -511,45 +613,176 @@ impl DroidNowApp {
         }
     }
 
-    fn draw_header(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("header")
+    fn draw_sidebar(&mut self, ctx: &egui::Context) {
+        let mut locale = self.locale;
+        let mut selected_page = self.page;
+        let reading_device = self.device_info.as_ref().is_some_and(|(_, result)| {
+            matches!(result, Err(message) if message == "Membaca identitas perangkat…")
+        });
+        let app_status = if self.installing_tools {
+            i18n::tr(locale, "Menyiapkan ADB/Fastboot…")
+        } else if self.scanning {
+            i18n::tr(locale, "Memindai…")
+        } else if self.rebooting {
+            i18n::tr(locale, "Memulai ulang…")
+        } else if self.inspecting_rom {
+            i18n::tr(locale, "Memeriksa berkas…")
+        } else if self.usb_scanning {
+            i18n::tr(locale, "Memeriksa USB…")
+        } else if reading_device {
+            i18n::tr(locale, "Membaca informasi perangkat…")
+        } else {
+            i18n::tr(locale, "Siap")
+        };
+        let is_loading = self.scanning
+            || self.installing_tools
+            || self.rebooting
+            || self.inspecting_rom
+            || self.usb_scanning
+            || reading_device;
+
+        egui::SidePanel::left("sidebar")
+            .exact_width(212.0)
+            .resizable(false)
             .frame(
                 egui::Frame::new()
-                    .fill(PANEL_DARK)
-                    .inner_margin(egui::Margin::symmetric(22, 13)),
+                    .fill(SIDEBAR)
+                    .stroke(Stroke::new(1.0_f32, LINE))
+                    .inner_margin(egui::Margin::symmetric(14, 18)),
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    draw_icon(ui, Icon::Device, 29.0, TEAL);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new("DroidNow").size(21.0).strong().color(TEXT));
+                    draw_icon(ui, Icon::Device, 24.0, TEAL);
+                    ui.label(RichText::new("DroidNow").size(18.0).strong().color(TEXT));
+                });
+                ui.label(
+                    RichText::new("Your devices. One solution")
+                        .size(10.0)
+                        .color(MUTED),
+                );
+                ui.add_space(20.0);
+                ui.label(
+                    RichText::new(i18n::tr(locale, "Ruang kerja"))
+                        .size(10.0)
+                        .strong()
+                        .color(MUTED),
+                );
+                for (id, page, icon, label) in [
+                    (
+                        "device",
+                        Page::Home,
+                        Icon::Device,
+                        i18n::tr(locale, "Perangkat"),
+                    ),
+                    (
+                        "activity",
+                        Page::Log,
+                        Icon::Activity,
+                        i18n::tr(locale, "Aktivitas"),
+                    ),
+                ] {
+                    if sidebar_item(ui, id, icon, label, selected_page == page).clicked() {
+                        selected_page = page;
+                    }
+                }
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(i18n::tr(locale, "Bantuan"))
+                        .size(10.0)
+                        .strong()
+                        .color(MUTED),
+                );
+                for (id, page, icon, label) in [
+                    ("guide", Page::Help, Icon::Help, i18n::tr(locale, "Panduan")),
+                    (
+                        "about",
+                        Page::About,
+                        Icon::Info,
+                        i18n::tr(locale, "Tentang"),
+                    ),
+                ] {
+                    if sidebar_item(ui, id, icon, label, selected_page == page).clicked() {
+                        selected_page = page;
+                    }
+                }
+
+                ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
+                    ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new("Your devices. One solution")
-                                .size(11.0)
+                            RichText::new(i18n::tr(locale, "Bahasa"))
+                                .size(10.0)
                                 .color(MUTED),
                         );
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            egui::ComboBox::from_id_salt("locale-switcher")
+                                .selected_text(locale.tag())
+                                .width(58.0)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut locale,
+                                        Locale::Indonesian,
+                                        "Bahasa Indonesia",
+                                    );
+                                    ui.selectable_value(&mut locale, Locale::English, "English");
+                                });
+                        });
                     });
+                    ui.add_space(9.0);
+                    ui.label(
+                        RichText::new(i18n::tr(locale, "Status aplikasi:"))
+                            .size(9.0)
+                            .color(MUTED),
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(app_status)
+                                .size(10.0)
+                                .strong()
+                                .color(if is_loading { TEAL } else { MUTED }),
+                        );
+                        if is_loading {
+                            ui.add(egui::Spinner::new().size(13.0).color(TEAL));
+                        }
+                    });
+                    ui.separator();
+                });
+            });
+        self.page = selected_page;
+        self.locale = locale;
+    }
+
+    fn draw_topbar(&mut self, ctx: &egui::Context) {
+        let locale = self.locale;
+        let page_label = match self.page {
+            Page::Home => i18n::tr(locale, "Perangkat"),
+            Page::Log => i18n::tr(locale, "Aktivitas"),
+            Page::About => i18n::tr(locale, "Tentang"),
+            Page::Help => i18n::tr(locale, "Panduan"),
+        };
+        egui::TopBottomPanel::top("workspace-topbar")
+            .exact_height(52.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(PANEL)
+                    .stroke(Stroke::new(1.0_f32, LINE))
+                    .inner_margin(egui::Margin::symmetric(20, 8)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    draw_icon(ui, Icon::Home, 16.0, MUTED);
+                    ui.label(RichText::new("DroidNow").size(11.0).color(MUTED));
+                    ui.label(RichText::new("›").size(12.0).color(MUTED));
+                    ui.label(RichText::new(page_label).size(11.0).strong().color(TEXT));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let mut locale = self.locale;
-                        egui::ComboBox::from_id_salt("locale-switcher")
-                            .selected_text(locale.tag())
-                            .width(74.0)
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut locale,
-                                    Locale::Indonesian,
-                                    "Bahasa Indonesia",
-                                );
-                                ui.selectable_value(&mut locale, Locale::English, "English");
-                            });
-                        self.locale = locale;
                         if draw_icon_button(
                             ui,
                             Icon::Folder,
-                            i18n::tr(self.locale, "Pilih tools"),
+                            i18n::tr(locale, "Pilih tools"),
                             true,
-                            137.0,
-                            36.0,
+                            142.0,
+                            34.0,
                             false,
                         )
                         .clicked()
@@ -561,45 +794,11 @@ impl DroidNowApp {
             });
     }
 
-    fn draw_navigation(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("navigation")
-            .exact_height(42.0)
-            .frame(
-                egui::Frame::new()
-                    .fill(PANEL_DARK)
-                    .inner_margin(egui::Margin::symmetric(22, 4)),
-            )
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    for (page, label) in [
-                        (Page::Home, i18n::tr(self.locale, "Perangkat")),
-                        (Page::Log, i18n::tr(self.locale, "Aktivitas")),
-                        (Page::Help, i18n::tr(self.locale, "Panduan")),
-                        (Page::About, i18n::tr(self.locale, "Tentang")),
-                    ] {
-                        let selected = self.page == page;
-                        let response = ui.add_sized(
-                            [92.0, 31.0],
-                            egui::Button::selectable(
-                                selected,
-                                RichText::new(label).size(11.0).color(if selected {
-                                    TEXT
-                                } else {
-                                    MUTED
-                                }),
-                            )
-                            .corner_radius(egui::CornerRadius::same(4)),
-                        );
-                        if response.clicked() {
-                            self.page = page;
-                        }
-                    }
-                });
-            });
-    }
-
-    fn draw_connection_banner(&self, ui: &mut egui::Ui) {
-        let (title, message, color) = match self.selected_device() {
+    fn connection_state(&self) -> (&'static str, &'static str, Color32) {
+        match self.selected_device() {
+            None if self.installing_tools => {
+                (i18n::tr(self.locale, "Menyiapkan ADB/Fastboot…"), "", TEAL)
+            }
             None if self.scanning => (
                 i18n::tr(self.locale, "Memindai perangkat"),
                 i18n::tr(self.locale, "Menunggu hasil ADB/Fastboot."),
@@ -632,443 +831,461 @@ impl DroidNowApp {
                 (i18n::tr(self.locale, "Fastboot terhubung"), "", TEAL)
             }
             Some(_) => (i18n::tr(self.locale, "Perangkat terhubung"), "", TEAL),
-        };
-        let available_width = ui.available_width();
-        egui::Frame::new()
-            .fill(PANEL)
-            .stroke(Stroke::new(1.0_f32, LINE))
-            .inner_margin(egui::Margin::symmetric(14, 11))
-            .show(ui, |ui| {
-                ui.set_min_width((available_width - 28.0).max(0.0));
-                ui.horizontal(|ui| {
-                    draw_icon(ui, Icon::Info, 21.0, color);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(title).size(12.0).strong().color(TEXT));
-                        if !message.is_empty() {
-                            ui.label(RichText::new(message).size(10.0).color(MUTED));
-                        }
-                    });
-                });
-            });
+        }
     }
 
     fn draw_device_card(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let (status, message, status_color) = self.connection_state();
+        let tools_ready = self.tool_status.adb_available || self.tool_status.fastboot_available;
+        let action_label = if self.scanning {
+            i18n::tr(self.locale, "Memindai…")
+        } else if self.installing_tools {
+            i18n::tr(self.locale, "Menyiapkan…")
+        } else if tools_ready {
+            i18n::tr(self.locale, "Pindai perangkat")
+        } else {
+            i18n::tr(self.locale, "Siapkan ADB/Fastboot")
+        };
+        let action_enabled = !self.scanning && !self.installing_tools && !self.rebooting;
+        let mut values = std::collections::HashMap::<String, String>::new();
+        if let (Some(device), Some((serial, Ok(info)))) =
+            (self.selected_device(), self.device_info.as_ref())
+        {
+            if &device.serial == serial {
+                for line in info.lines() {
+                    if let Some((key, value)) = line.split_once(':') {
+                        values.insert(key.trim().to_ascii_lowercase(), value.trim().to_string());
+                    }
+                }
+            }
+        }
+        let missing_value = if self.selected_device().is_some() {
+            i18n::tr(self.locale, "Belum terbaca")
+        } else {
+            i18n::tr(self.locale, "Belum tersedia")
+        };
+        let model = values
+            .get("model")
+            .cloned()
+            .unwrap_or_else(|| missing_value.into());
+        let android = values
+            .get("android")
+            .cloned()
+            .unwrap_or_else(|| missing_value.into());
+        let codename = values
+            .get("codename")
+            .or_else(|| values.get("product"))
+            .cloned()
+            .unwrap_or_else(|| missing_value.into());
+        let bootloader = values
+            .get("bootloader unlocked")
+            .cloned()
+            .unwrap_or_else(|| missing_value.into());
+        let serial = self
+            .selected_device()
+            .map(|device| device.serial.clone())
+            .unwrap_or_else(|| missing_value.into());
+        let connection = self
+            .selected_device()
+            .map(|device| format!("{} · {}", device.mode.to_uppercase(), device.state))
+            .unwrap_or_else(|| missing_value.into());
+        let title = values
+            .get("model")
+            .filter(|model| !model.trim().is_empty())
+            .map(String::as_str)
+            .unwrap_or(status);
+
         card(ui, |ui| {
-            ui.horizontal(|ui| {
-                draw_icon(ui, Icon::Device, 18.0, MUTED);
-                ui.label(
-                    RichText::new(i18n::tr(self.locale, "Informasi perangkat"))
-                        .size(14.0)
-                        .strong()
-                        .color(TEXT),
-                );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if self.devices.len() > 1 {
-                        let selected_label = self
-                            .selected_device()
-                            .map(|device| {
-                                format!("{} · {}", device.mode.to_uppercase(), device.serial)
-                            })
-                            .unwrap_or_else(|| i18n::tr(self.locale, "Pilih perangkat").into());
-                        let mut selected = self.selected_index;
-                        let combo_id = ui.make_persistent_id(egui::Id::new("Perangkat"));
-                        let response =
-                            egui::ComboBox::from_label(i18n::tr(self.locale, "Perangkat"))
-                                .selected_text(RichText::new(selected_label).size(9.0).color(TEXT))
-                                .show_ui(ui, |ui| {
-                                    for (index, device) in self.devices.iter().enumerate() {
-                                        ui.selectable_value(
-                                            &mut selected,
-                                            Some(index),
-                                            format!(
-                                                "{} · {} · {}",
-                                                device.mode.to_uppercase(),
-                                                device.serial,
-                                                device.state
-                                            ),
-                                        );
-                                    }
-                                })
-                                .response;
-                        let popup_open = egui::ComboBox::is_open(ctx, combo_id);
-                        let key_step = if response.has_focus() && !popup_open {
-                            ctx.input(|input| {
-                                if input.key_pressed(egui::Key::ArrowDown) {
-                                    1isize
-                                } else if input.key_pressed(egui::Key::ArrowUp) {
-                                    -1
-                                } else {
-                                    0
-                                }
-                            })
-                        } else {
-                            0
-                        };
-                        if selected == self.selected_index && key_step != 0 {
-                            let len = self.devices.len();
-                            let index = selected.unwrap_or(0) % len;
-                            selected = Some(if key_step > 0 {
-                                (index + 1) % len
+            let empty_state = self.selected_device().is_none();
+            if empty_state {
+                ui.add_space(42.0);
+            }
+            if self.devices.len() > 1 {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(i18n::tr(self.locale, "Pilih perangkat"))
+                            .size(10.0)
+                            .color(MUTED),
+                    );
+                    let selected_label = self
+                        .selected_device()
+                        .map(|device| format!("{} · {}", device.mode.to_uppercase(), device.serial))
+                        .unwrap_or_else(|| i18n::tr(self.locale, "Belum dipilih").into());
+                    let mut selected = self.selected_index;
+                    let response = egui::ComboBox::from_id_salt("device-selector")
+                        .selected_text(RichText::new(selected_label).size(10.0).color(TEXT))
+                        .show_ui(ui, |ui| {
+                            for (index, device) in self.devices.iter().enumerate() {
+                                ui.selectable_value(
+                                    &mut selected,
+                                    Some(index),
+                                    format!(
+                                        "{} · {} · {}",
+                                        device.mode.to_uppercase(),
+                                        device.serial,
+                                        device.state
+                                    ),
+                                );
+                            }
+                        })
+                        .response;
+                    if selected != self.selected_index {
+                        self.select_device(selected, ctx);
+                    }
+                    if response.has_focus() && !egui::ComboBox::is_open(ctx, response.id) {
+                        let key_step = ctx.input(|input| {
+                            if input.key_pressed(egui::Key::ArrowDown) {
+                                1isize
+                            } else if input.key_pressed(egui::Key::ArrowUp) {
+                                -1
                             } else {
-                                (index + len - 1) % len
+                                0
+                            }
+                        });
+                        if key_step != 0 && !self.devices.is_empty() {
+                            let index = self.selected_index.unwrap_or(0) % self.devices.len();
+                            let next = if key_step > 0 {
+                                (index + 1) % self.devices.len()
+                            } else {
+                                (index + self.devices.len() - 1) % self.devices.len()
+                            };
+                            self.select_device(Some(next), ctx);
+                        }
+                    }
+                });
+                ui.add_space(10.0);
+            }
+
+            ui.horizontal_top(|ui| {
+                egui::Frame::new()
+                    .fill(TEAL_PALE)
+                    .corner_radius(egui::CornerRadius::same(13))
+                    .inner_margin(egui::Margin::same(14))
+                    .show(ui, |ui| {
+                        draw_icon(
+                            ui,
+                            Icon::Device,
+                            64.0,
+                            if self.selected_device().is_some() {
+                                TEAL
+                            } else {
+                                MUTED
+                            },
+                        );
+                    });
+                ui.add_space(13.0);
+                ui.vertical(|ui| {
+                    if self.selected_device().is_some() {
+                        egui::Frame::new()
+                            .fill(TEAL_PALE)
+                            .corner_radius(egui::CornerRadius::same(4))
+                            .inner_margin(egui::Margin::symmetric(7, 3))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new(status)
+                                        .size(10.0)
+                                        .strong()
+                                        .color(status_color),
+                                );
                             });
-                        }
-                        if selected != self.selected_index {
-                            self.select_device(selected, ctx);
-                        }
-                    } else {
-                        if let Some(device) = self.selected_device() {
-                            ui.label(
-                                RichText::new(device.mode.to_uppercase())
-                                    .size(9.0)
+                        ui.add_space(8.0);
+                    }
+                    ui.label(RichText::new(title).size(19.0).strong().color(TEXT));
+                    if !message.is_empty() {
+                        ui.label(RichText::new(message).size(11.0).color(MUTED));
+                    }
+                    if let Some(device) = self.selected_device() {
+                        match self.device_info.as_ref() {
+                            Some((serial, Ok(_))) if serial == &device.serial => {}
+                            Some((serial, Err(error)))
+                                if serial == &device.serial
+                                    && error == "Membaca identitas perangkat…" =>
+                            {
+                                ui.horizontal(|ui| {
+                                    ui.add(egui::Spinner::new().size(13.0).color(TEAL));
+                                    ui.label(
+                                        RichText::new(i18n::tr(
+                                            self.locale,
+                                            "Membaca informasi dasar perangkat…",
+                                        ))
+                                        .size(10.0)
+                                        .color(MUTED),
+                                    );
+                                });
+                            }
+                            Some((serial, Err(error))) if serial == &device.serial => {
+                                ui.label(
+                                    RichText::new(i18n::translate_text(
+                                        self.locale,
+                                        &format!(
+                                            "Informasi dasar tidak dapat dibaca: {error}. Periksa koneksi dan ketersediaan tools."
+                                        ),
+                                    ))
+                                    .size(10.0)
+                                    .color(RED),
+                                );
+                            }
+                            _ => {
+                                ui.label(
+                                    RichText::new(i18n::tr(
+                                        self.locale,
+                                        "Menunggu hasil pembacaan informasi dasar…",
+                                    ))
+                                    .size(10.0)
                                     .color(MUTED),
-                            );
+                                );
+                            }
+                        }
+                    }
+                    ui.add_space(9.0);
+                    let button_width = ui.available_width().min(230.0);
+                    if draw_icon_button(
+                        ui,
+                        Icon::Scan,
+                        action_label,
+                        action_enabled,
+                        button_width,
+                        38.0,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        if tools_ready {
+                            self.start_scan(ctx.clone());
                         } else {
-                            ui.label(
-                                RichText::new(i18n::tr(self.locale, "Belum dipilih"))
-                                    .size(9.0)
-                                    .color(MUTED),
-                            );
+                            self.start_platform_tools_install(ctx.clone());
                         }
                     }
                 });
             });
-            ui.add_space(9.0);
-            if let Some(device) = self.selected_device() {
-                match self.device_info.as_ref() {
-                    Some((serial, Ok(_))) if serial == &device.serial => {}
-                    Some((serial, Err(error)))
-                        if serial == &device.serial && error == "Membaca identitas perangkat…" =>
-                    {
-                        ui.label(
-                            RichText::new(i18n::tr(
-                                self.locale,
-                                "Membaca informasi dasar perangkat…",
-                            ))
-                            .size(10.0)
-                            .color(MUTED),
-                        );
-                    }
-                    Some((serial, Err(error))) if serial == &device.serial => {
-                        ui.label(
-                            RichText::new(i18n::translate_text(self.locale, &format!(
-                                "Informasi dasar tidak dapat dibaca: {error}. Periksa koneksi dan ketersediaan tools."
-                            )))
-                            .size(10.0)
-                            .color(RED),
-                        );
-                    }
-                    _ => {
-                        ui.label(
-                            RichText::new(i18n::tr(
-                                self.locale,
-                                "Menunggu hasil pembacaan informasi dasar…",
-                            ))
-                            .size(10.0)
-                            .color(MUTED),
-                        );
-                    }
-                }
-            }
-            ui.add_space(6.0);
-            let mut values = std::collections::HashMap::<String, String>::new();
-            if let (Some(device), Some((serial, Ok(info)))) =
-                (self.selected_device(), self.device_info.as_ref())
-            {
-                if &device.serial == serial {
-                    for line in info.lines() {
-                        if let Some((key, value)) = line.split_once(':') {
-                            values
-                                .insert(key.trim().to_ascii_lowercase(), value.trim().to_string());
-                        }
-                    }
-                }
-            }
-            let missing_value = if self.selected_device().is_some() {
-                i18n::tr(self.locale, "Belum terbaca")
-            } else {
-                i18n::tr(self.locale, "Belum tersedia")
-            };
-            let model = values
-                .get("model")
-                .cloned()
-                .unwrap_or_else(|| missing_value.into());
-            let codename = values
-                .get("codename")
-                .or_else(|| values.get("product"))
-                .cloned()
-                .unwrap_or_else(|| missing_value.into());
-            let android = values
-                .get("android")
-                .cloned()
-                .unwrap_or_else(|| missing_value.into());
-            let bootloader = values
-                .get("bootloader unlocked")
-                .cloned()
-                .unwrap_or_else(|| missing_value.into());
-            let serial = self
-                .selected_device()
-                .map(|device| device.serial.clone())
-                .unwrap_or_else(|| missing_value.into());
-            let connection = self
-                .selected_device()
-                .map(|device| format!("{} · {}", device.mode.to_uppercase(), device.state))
-                .unwrap_or_else(|| missing_value.into());
-            ui.columns(3, |columns| {
-                kv_row(&mut columns[0], i18n::tr(self.locale, "Model"), &model);
-                kv_row(
-                    &mut columns[1],
-                    i18n::tr(self.locale, "Versi Android"),
-                    &android,
-                );
-                kv_row(
-                    &mut columns[2],
-                    i18n::tr(self.locale, "Koneksi"),
-                    &connection,
-                );
-            });
-            if let Some((info_serial, Ok(info))) = self.device_info.as_ref() {
-                if self
-                    .selected_device()
-                    .is_some_and(|device| device.serial == *info_serial)
-                {
-                    egui::CollapsingHeader::new(i18n::tr(self.locale, "Detail perangkat"))
-                        .default_open(false)
-                        .show(ui, |ui| {
-                            ui.columns(3, |columns| {
-                                kv_row(
-                                    &mut columns[0],
-                                    i18n::tr(self.locale, "Kode perangkat"),
-                                    &codename,
-                                );
-                                kv_row(
-                                    &mut columns[1],
-                                    i18n::tr(self.locale, "Status bootloader"),
-                                    &bootloader,
-                                );
-                                kv_row(
-                                    &mut columns[2],
-                                    i18n::tr(self.locale, "Nomor seri"),
-                                    &serial,
-                                );
-                            });
-                            ui.label(RichText::new(i18n::tr(self.locale, "Nilai kosong atau gagal dibaca tidak membuktikan perangkat aman.")).size(9.0).color(AMBER));
-                            for line in info.lines() {
-                                ui.label(RichText::new(i18n::translate_text(self.locale, line)).size(9.0).monospace().color(MUTED));
-                            }
-                        });
-                }
-            }
-            if let Some(device) = self.selected_device() {
-                if device.mode == "adb" && device.state != "device" {
-                    ui.add_space(5.0);
-                    ui.label(
-                        RichText::new(if device.state == "unauthorized" {
-                            i18n::tr(
-                                self.locale,
-                                "Buka layar ponsel dan setujui permintaan USB debugging.",
-                            )
-                        } else {
-                            i18n::tr(
-                                self.locale,
-                                "Coba kabel atau port USB lain, lalu sambungkan kembali.",
-                            )
-                        })
-                        .size(9.0)
-                        .color(AMBER),
+
+            if self.selected_device().is_some() {
+                ui.add_space(15.0);
+                ui.separator();
+                ui.add_space(11.0);
+                ui.columns(3, |columns| {
+                    kv_row(&mut columns[0], i18n::tr(self.locale, "Model"), &model);
+                    kv_row(
+                        &mut columns[1],
+                        i18n::tr(self.locale, "Versi Android"),
+                        &android,
                     );
+                    kv_row(
+                        &mut columns[2],
+                        i18n::tr(self.locale, "Koneksi"),
+                        &connection,
+                    );
+                });
+                if let Some((info_serial, Ok(info))) = self.device_info.as_ref() {
+                    if self
+                        .selected_device()
+                        .is_some_and(|device| device.serial == *info_serial)
+                    {
+                        egui::CollapsingHeader::new(i18n::tr(self.locale, "Detail perangkat"))
+                            .default_open(false)
+                            .show(ui, |ui| {
+                                ui.columns(3, |columns| {
+                                    kv_row(
+                                        &mut columns[0],
+                                        i18n::tr(self.locale, "Kode perangkat"),
+                                        &codename,
+                                    );
+                                    kv_row(
+                                        &mut columns[1],
+                                        i18n::tr(self.locale, "Status bootloader"),
+                                        &bootloader,
+                                    );
+                                    kv_row(
+                                        &mut columns[2],
+                                        i18n::tr(self.locale, "Nomor seri"),
+                                        &serial,
+                                    );
+                                });
+                                ui.label(
+                                    RichText::new(i18n::tr(
+                                        self.locale,
+                                        "Nilai kosong atau gagal dibaca tidak membuktikan perangkat aman.",
+                                    ))
+                                    .size(10.0)
+                                    .color(AMBER),
+                                );
+                                for line in info.lines() {
+                                    ui.label(
+                                        RichText::new(i18n::translate_text(self.locale, line))
+                                            .size(9.0)
+                                            .monospace()
+                                            .color(MUTED),
+                                    );
+                                }
+                            });
+                    }
                 }
+            }
+            if empty_state {
+                ui.add_space(42.0);
             }
         });
     }
 
     fn draw_usb_mode_card(&self, ui: &mut egui::Ui) {
-        card(ui, |ui| {
-            ui.horizontal(|ui| {
-                draw_icon(ui, Icon::Device, 18.0, MUTED);
-                ui.label(
-                    RichText::new(i18n::tr(self.locale, "Mode USB teramati"))
-                        .size(14.0)
-                        .strong()
-                        .color(TEXT),
-                );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(i18n::tr(self.locale, "Baca-saja"))
-                            .size(9.0)
-                            .color(AMBER),
-                    );
-                });
-            });
-            ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            draw_icon(ui, Icon::Device, 16.0, MUTED);
             ui.label(
-                RichText::new(i18n::tr(self.locale, "Petunjuk dari VID:PID teramati."))
-                    .size(10.0)
-                    .color(MUTED),
-            );
-            if self.usb_scanning {
-                ui.label(
-                    RichText::new(i18n::tr(self.locale, "Memeriksa daftar perangkat USB…"))
-                        .size(10.0)
-                        .color(MUTED),
-                );
-            } else if self.usb_scan_error.is_some() {
-                ui.label(
-                    RichText::new(i18n::tr(
-                        self.locale,
-                        "Daftar perangkat USB tidak dapat dibaca saat ini.",
-                    ))
-                    .size(10.0)
-                    .color(AMBER),
-                );
-            } else if self.usb_modes.is_empty() {
-                ui.label(
-                    RichText::new(i18n::tr(
-                        self.locale,
-                        "Tidak ada ID USB yang dikenali untuk petunjuk mode.",
-                    ))
-                    .size(10.0)
-                    .color(MUTED),
-                );
-            } else {
-                ui.add_space(3.0);
-                for detected in &self.usb_modes {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(i18n::translate_text(self.locale, detected.mode.label()))
-                                .size(10.0)
-                                .color(TEXT),
-                        );
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            ui.label(
-                                RichText::new(detected.usb_id())
-                                    .size(9.0)
-                                    .monospace()
-                                    .color(MUTED),
-                            );
-                        });
-                    });
-                }
-            }
-        });
-    }
-
-    fn draw_actions(&mut self, ui: &mut egui::Ui) {
-        card(ui, |ui| {
-            ui.label(
-                RichText::new(i18n::tr(self.locale, "Mulai ulang perangkat"))
-                    .size(14.0)
+                RichText::new(i18n::tr(self.locale, "Mode USB teramati"))
+                    .size(12.0)
                     .strong()
                     .color(TEXT),
             );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.label(
+                    RichText::new(i18n::tr(self.locale, "Baca-saja"))
+                        .size(9.0)
+                        .color(MUTED),
+                );
+            });
+        });
+        ui.add_space(5.0);
+        ui.label(
+            RichText::new(i18n::tr(self.locale, "Petunjuk dari VID:PID teramati."))
+                .size(10.0)
+                .color(MUTED),
+        );
+        if self.usb_scanning {
             ui.label(
-                RichText::new(i18n::tr(self.locale, "Konfirmasi diperlukan."))
+                RichText::new(i18n::tr(self.locale, "Memeriksa daftar perangkat USB…"))
                     .size(10.0)
                     .color(MUTED),
             );
-            ui.add_space(10.0);
-            ui.horizontal(|ui| {
-                let button_width = ((ui.available_width() - 16.0) / 3.0).max(120.0);
-                for (label, action, icon_kind) in [
-                    (
-                        i18n::tr(self.locale, "Mulai ulang ke Android"),
-                        "system",
-                        Icon::Reboot,
-                    ),
-                    (
-                        i18n::tr(self.locale, "Buka Recovery"),
-                        "recovery",
-                        Icon::Reboot,
-                    ),
-                    (
-                        i18n::tr(self.locale, "Buka Fastboot"),
-                        "bootloader",
-                        Icon::Reboot,
-                    ),
-                ] {
-                    let enabled = self.selected_device().is_some_and(|device| {
-                        ((device.mode == "adb" && device.state == "device")
-                            || (device.mode == "fastboot" && action == "system"))
-                            && !self.rebooting
-                    });
-                    if draw_icon_button(ui, icon_kind, label, enabled, button_width, 42.0, false)
-                        .clicked()
-                    {
-                        self.pending_action = Some(action);
-                    }
-                }
-            });
-        });
-    }
-
-    fn draw_rom_card(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        card(ui, |ui| {
-            ui.horizontal(|ui| {
-                draw_icon(ui, Icon::Folder, 18.0, MUTED);
-                ui.label(
-                    RichText::new(i18n::tr(self.locale, "Periksa berkas ROM lokal"))
-                        .size(14.0)
-                        .strong()
-                        .color(TEXT),
-                );
-            });
+        } else if self.usb_scan_error.is_some() {
             ui.label(
                 RichText::new(i18n::tr(
                     self.locale,
-                    "Menghitung SHA-256 lokal. Berkas tidak dijalankan atau dikirim ke perangkat.",
+                    "Daftar perangkat USB tidak dapat dibaca saat ini.",
+                ))
+                .size(10.0)
+                .color(AMBER),
+            );
+        } else if self.usb_modes.is_empty() {
+            ui.label(
+                RichText::new(i18n::tr(
+                    self.locale,
+                    "Tidak ada ID USB yang dikenali untuk petunjuk mode.",
                 ))
                 .size(10.0)
                 .color(MUTED),
             );
-            ui.add_space(8.0);
-            ui.label(
-                RichText::new(i18n::tr(self.locale, "Folder yang akan diperiksa"))
-                    .size(9.0)
-                    .color(MUTED),
-            );
-            ui.horizontal(|ui| {
-                let browse_width = 146.0;
-                let inspect_width = 144.0;
-                let text_width =
-                    (ui.available_width() - browse_width - inspect_width - 16.0).max(120.0);
-                let can_edit_folder = !self.inspecting_rom;
-                let can_inspect = can_edit_folder && !self.rom_folder.trim().is_empty();
-                ui.add_enabled_ui(can_edit_folder, |ui| {
-                    ui.add_sized(
-                        [text_width, 32.0],
-                        egui::TextEdit::singleline(&mut self.rom_folder)
-                            .hint_text(i18n::tr(self.locale, "Pilih folder ROM hasil ekstrak")),
+        } else {
+            ui.add_space(3.0);
+            for detected in &self.usb_modes {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(i18n::translate_text(self.locale, detected.mode.label()))
+                            .size(10.0)
+                            .color(TEXT),
                     );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.label(
+                            RichText::new(detected.usb_id())
+                                .size(9.0)
+                                .monospace()
+                                .color(MUTED),
+                        );
+                    });
                 });
-                if draw_icon_button(
-                    ui,
-                    Icon::Folder,
-                    i18n::tr(self.locale, "Pilih folder"),
-                    can_edit_folder,
-                    browse_width,
-                    36.0,
-                    false,
-                )
-                .clicked()
-                {
-                    self.choose_rom_folder();
-                }
-                if draw_icon_button(
-                    ui,
-                    Icon::Scan,
-                    i18n::tr(self.locale, "Periksa berkas"),
-                    can_inspect,
-                    inspect_width,
-                    36.0,
-                    false,
-                )
-                .clicked()
-                {
-                    self.inspect_selected_rom(ctx);
-                }
+            }
+        }
+    }
+
+    fn draw_actions(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new(i18n::tr(self.locale, "Konfirmasi diperlukan."))
+                .size(10.0)
+                .color(MUTED),
+        );
+        ui.add_space(7.0);
+        for (label, action) in [
+            (i18n::tr(self.locale, "Mulai ulang ke Android"), "system"),
+            (i18n::tr(self.locale, "Buka Recovery"), "recovery"),
+            (i18n::tr(self.locale, "Buka Fastboot"), "bootloader"),
+        ] {
+            let enabled = self.selected_device().is_some_and(|device| {
+                ((device.mode == "adb" && device.state == "device")
+                    || (device.mode == "fastboot" && action == "system"))
+                    && !self.rebooting
             });
-            ui.add_space(7.0);
-            if self.inspecting_rom {
+            if draw_icon_button(
+                ui,
+                Icon::Reboot,
+                label,
+                enabled,
+                ui.available_width().min(238.0),
+                34.0,
+                false,
+            )
+            .clicked()
+            {
+                self.pending_action = Some(action);
+            }
+            ui.add_space(5.0);
+        }
+    }
+
+    fn draw_rom_card(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        ui.label(
+            RichText::new(i18n::tr(
+                self.locale,
+                "SHA-256 lokal saja. Berkas tidak dijalankan atau dikirim ke perangkat.",
+            ))
+            .size(10.0)
+            .color(MUTED),
+        );
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new(i18n::tr(self.locale, "Folder yang akan diperiksa"))
+                .size(9.0)
+                .color(MUTED),
+        );
+        let can_edit_folder = !self.inspecting_rom;
+        let can_inspect = can_edit_folder && !self.rom_folder.trim().is_empty();
+        ui.add_enabled_ui(can_edit_folder, |ui| {
+            ui.add_sized(
+                [ui.available_width(), 32.0],
+                egui::TextEdit::singleline(&mut self.rom_folder)
+                    .hint_text(i18n::tr(self.locale, "Pilih folder ROM hasil ekstrak")),
+            );
+        });
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            let button_width = ((ui.available_width() - 8.0) / 2.0).max(90.0);
+            if ui
+                .add_enabled(
+                    can_edit_folder,
+                    egui::Button::new(
+                        RichText::new(i18n::tr(self.locale, "Pilih folder")).size(11.0),
+                    )
+                    .min_size(egui::vec2(button_width, 34.0)),
+                )
+                .clicked()
+            {
+                self.choose_rom_folder();
+            }
+            if ui
+                .add_enabled(
+                    can_inspect,
+                    egui::Button::new(
+                        RichText::new(i18n::tr(self.locale, "Periksa berkas")).size(11.0),
+                    )
+                    .min_size(egui::vec2(button_width, 34.0)),
+                )
+                .clicked()
+            {
+                self.inspect_selected_rom(ctx);
+            }
+        });
+        ui.add_space(7.0);
+        if self.inspecting_rom {
+            ui.horizontal(|ui| {
+                ui.add(egui::Spinner::new().size(13.0).color(TEAL));
                 ui.label(
                     RichText::new(i18n::tr(
                         self.locale,
@@ -1077,169 +1294,256 @@ impl DroidNowApp {
                     .size(10.0)
                     .color(MUTED),
                 );
-            } else if let Some(error) = &self.rom_error {
-                ui.label(
-                    RichText::new(i18n::translate_text(
-                        self.locale,
-                        &format!("Pemeriksaan gagal: {error}"),
-                    ))
+            });
+        } else if let Some(error) = &self.rom_error {
+            ui.label(
+                RichText::new(i18n::translate_text(
+                    self.locale,
+                    &format!("Pemeriksaan gagal: {error}"),
+                ))
+                .size(10.0)
+                .color(RED),
+            );
+            ui.label(
+                RichText::new(i18n::tr(
+                    self.locale,
+                    "Pilih folder yang benar, lalu jalankan pemeriksaan lagi.",
+                ))
+                .size(9.0)
+                .color(MUTED),
+            );
+        } else if let Some((_path, inspection)) = &self.rom {
+            ui.label(
+                RichText::new(&inspection.folder_name)
                     .size(10.0)
-                    .color(RED),
-                );
-                ui.label(
-                    RichText::new(i18n::tr(
-                        self.locale,
-                        "Pilih folder yang benar, lalu jalankan pemeriksaan lagi.",
-                    ))
+                    .strong()
+                    .monospace()
+                    .color(TEXT),
+            );
+            let summary = if inspection.entries.is_empty() {
+                i18n::tr(self.locale, "Folder ini tidak berisi berkas gambar atau metadata yang dikenali. Pilih folder ROM hasil ekstrak.").to_string()
+            } else {
+                format!(
+                    "{} berkas terkait · {}",
+                    inspection.entries.len(),
+                    inspection.script_hint
+                )
+            };
+            ui.label(
+                RichText::new(i18n::translate_text(self.locale, &summary))
                     .size(9.0)
                     .color(MUTED),
-                );
-            } else if let Some((_path, inspection)) = &self.rom {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        RichText::new(&inspection.folder_name)
-                            .size(10.0)
-                            .strong()
-                            .monospace()
-                            .color(TEXT),
-                    );
+            );
+            let selected_serial = self.selected_device().map(|device| device.serial.as_str());
+            let device_info = self.device_info.as_ref().and_then(|(serial, result)| {
+                (Some(serial.as_str()) == selected_serial)
+                    .then(|| result.as_ref().ok().map(String::as_str))
+                    .flatten()
+            });
+            let package_check = crate::rom_check::check_package(device_info, inspection);
+            let (check_text, check_color) = match package_check.status {
+                crate::rom_check::RomCheckStatus::Mismatch => (
+                    "Henti: codename atau region perangkat dan paket ROM berbeda.",
+                    RED,
+                ),
+                crate::rom_check::RomCheckStatus::CandidateMatch => (
+                    "Label codename dan region cocok; sumber dan keamanan firmware belum terverifikasi.",
+                    AMBER,
+                ),
+                crate::rom_check::RomCheckStatus::InsufficientEvidence => (
+                    "Belum dapat dipastikan: codename dan region perangkat/paket belum terbaca lengkap.",
+                    AMBER,
+                ),
+            };
+            ui.add_space(5.0);
+            ui.label(
+                RichText::new(i18n::tr(self.locale, "Pemeriksaan kecocokan paket"))
+                    .size(10.0)
+                    .strong()
+                    .color(TEXT),
+            );
+            ui.label(
+                RichText::new(i18n::tr(self.locale, check_text))
+                    .size(9.0)
+                    .color(check_color),
+            );
+            let device_codename = package_check
+                .device_codename
+                .as_deref()
+                .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+            let device_region = package_check
+                .device_region
+                .as_deref()
+                .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+            let package_codename = package_check
+                .package_codename
+                .as_deref()
+                .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+            let package_region = package_check
+                .package_region
+                .as_deref()
+                .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+            ui.label(
+                RichText::new(format!(
+                    "{}: {device_codename} · {device_region}",
+                    i18n::tr(self.locale, "Perangkat"),
+                ))
+                .size(9.0)
+                .monospace()
+                .color(MUTED),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "{}: {package_codename} · {package_region}",
+                    i18n::tr(self.locale, "Paket ROM"),
+                ))
+                .size(9.0)
+                .monospace()
+                .color(MUTED),
+            );
+            egui::ScrollArea::vertical()
+                .max_height(110.0)
+                .show(ui, |ui| {
+                    for entry in inspection.entries.iter().take(12) {
+                        let kind_color = if entry.kind == "IMAGE" { MUTED } else { AMBER };
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(
+                                RichText::new(&entry.kind)
+                                    .size(8.0)
+                                    .monospace()
+                                    .color(kind_color),
+                            );
+                            ui.label(RichText::new(&entry.name).size(9.0).monospace().color(TEXT));
+                        });
+                        let hash_text = entry.sha256.as_deref().map_or_else(
+                            || {
+                                entry
+                                    .hash_error
+                                    .as_deref()
+                                    .unwrap_or(i18n::tr(self.locale, "SHA-256 tidak tersedia"))
+                                    .to_string()
+                            },
+                            |hash| {
+                                let (first, rest) = hash.split_at(hash.len().min(32));
+                                format!("{} B · SHA-256 {first}\n{rest}", entry.size_bytes)
+                            },
+                        );
+                        ui.label(
+                            RichText::new(i18n::translate_text(self.locale, &hash_text))
+                                .size(8.0)
+                                .monospace()
+                                .color(MUTED),
+                        );
+                    }
                 });
-                let summary = if inspection.entries.is_empty() {
-                    i18n::tr(self.locale, "Folder ini tidak berisi berkas gambar atau metadata yang dikenali. Pilih folder ROM hasil ekstrak.").to_string()
-                } else {
-                    format!(
-                        "{} berkas terkait · {}",
-                        inspection.entries.len(),
-                        inspection.script_hint
-                    )
-                };
+            ui.label(
+                RichText::new(i18n::translate_text(self.locale, &inspection.warning))
+                    .size(9.0)
+                    .color(AMBER),
+            );
+        } else {
+            ui.label(
+                RichText::new(i18n::tr(
+                    self.locale,
+                    "Pilih folder untuk melihat nama, ukuran, dan SHA-256 berkas yang ditemukan.",
+                ))
+                .size(10.0)
+                .color(MUTED),
+            );
+        }
+    }
+
+    fn draw_checks_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let checking_tools = self.scanning || self.installing_tools;
+        card(ui, |ui| {
+            ui.horizontal(|ui| {
+                draw_icon(ui, Icon::Shield, 18.0, MUTED);
                 ui.label(
-                    RichText::new(i18n::translate_text(self.locale, &summary))
-                        .size(9.0)
-                        .color(MUTED),
-                );
-                let selected_serial = self.selected_device().map(|device| device.serial.as_str());
-                let device_info = self.device_info.as_ref().and_then(|(serial, result)| {
-                    (Some(serial.as_str()) == selected_serial)
-                        .then(|| result.as_ref().ok().map(String::as_str))
-                        .flatten()
-                });
-                let package_check = crate::rom_check::check_package(device_info, inspection);
-                let (check_text, check_color) = match package_check.status {
-                    crate::rom_check::RomCheckStatus::Mismatch => (
-                        "Henti: codename atau region perangkat dan paket ROM berbeda.",
-                        RED,
-                    ),
-                    crate::rom_check::RomCheckStatus::CandidateMatch => (
-                        "Label codename dan region cocok; sumber dan keamanan firmware belum terverifikasi.",
-                        AMBER,
-                    ),
-                    crate::rom_check::RomCheckStatus::InsufficientEvidence => (
-                        "Belum dapat dipastikan: codename dan region perangkat/paket belum terbaca lengkap.",
-                        AMBER,
-                    ),
-                };
-                ui.add_space(5.0);
-                ui.label(
-                    RichText::new(i18n::tr(self.locale, "Pemeriksaan kecocokan paket"))
-                        .size(10.0)
+                    RichText::new(i18n::tr(self.locale, "Pemeriksaan"))
+                        .size(14.0)
                         .strong()
                         .color(TEXT),
                 );
-                ui.label(
-                    RichText::new(i18n::tr(self.locale, check_text))
-                        .size(9.0)
-                        .color(check_color),
-                );
-                let device_codename = package_check
-                    .device_codename
-                    .as_deref()
-                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
-                let device_region = package_check
-                    .device_region
-                    .as_deref()
-                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
-                let package_codename = package_check
-                    .package_codename
-                    .as_deref()
-                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
-                let package_region = package_check
-                    .package_region
-                    .as_deref()
-                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
-                ui.label(
-                    RichText::new(format!(
-                        "{}: {device_codename} · {device_region}   |   {}: {package_codename} · {package_region}",
-                        i18n::tr(self.locale, "Perangkat"),
-                        i18n::tr(self.locale, "Paket ROM"),
-                    ))
-                    .size(9.0)
-                    .monospace()
-                    .color(MUTED),
-                );
-                ui.label(
-                    RichText::new(i18n::tr(
-                        self.locale,
-                        "Pemeriksaan ini tidak memberi izin flash; penulisan firmware tetap tidak tersedia.",
-                    ))
-                    .size(9.0)
-                    .color(AMBER),
-                );
-                ui.label(
-                    RichText::new(i18n::tr(
-                        self.locale,
-                        "Sumber dan kecocokan firmware belum dapat dipastikan.",
-                    ))
-                    .size(9.0)
-                    .color(AMBER),
-                );
-                egui::ScrollArea::vertical()
-                    .max_height(78.0)
-                    .show(ui, |ui| {
-                        for entry in inspection.entries.iter().take(12) {
-                            let kind_color = if entry.kind == "IMAGE" { MUTED } else { AMBER };
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new(&entry.kind)
-                                        .size(8.0)
-                                        .monospace()
-                                        .color(kind_color),
-                                );
-                                ui.label(
-                                    RichText::new(&entry.name).size(9.0).monospace().color(TEXT),
-                                );
-                            });
-                            let hash_text = entry.sha256.as_deref().map_or_else(
-                                || {
-                                    entry
-                                        .hash_error
-                                        .as_deref()
-                                        .unwrap_or(i18n::tr(self.locale, "SHA-256 tidak tersedia"))
-                                        .to_string()
-                                },
-                                |hash| format!("{} B · SHA-256 {hash}", entry.size_bytes),
-                            );
-                            ui.label(
-                                RichText::new(i18n::translate_text(self.locale, &hash_text))
-                                    .size(8.0)
-                                    .monospace()
-                                    .color(MUTED),
-                            );
-                        }
+            });
+            ui.add_space(8.0);
+            for (name, available) in [
+                ("ADB", self.tool_status.adb_available),
+                ("Fastboot", self.tool_status.fastboot_available),
+            ] {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(name).size(11.0).color(TEXT));
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let (label, color) = if checking_tools {
+                            (i18n::tr(self.locale, "Memeriksa…"), MUTED)
+                        } else if available {
+                            (i18n::tr(self.locale, "Siap"), TEAL)
+                        } else {
+                            (i18n::tr(self.locale, "Tidak ditemukan"), AMBER)
+                        };
+                        ui.label(RichText::new(label).size(10.0).color(color));
                     });
+                });
+            }
+            ui.add_space(7.0);
+            ui.separator();
+            ui.add_space(8.0);
+            self.draw_usb_mode_card(ui);
+            ui.add_space(5.0);
+            ui.separator();
+            egui::CollapsingHeader::new(i18n::tr(self.locale, "Mulai ulang perangkat"))
+                .default_open(false)
+                .show(ui, |ui| self.draw_actions(ui));
+            ui.separator();
+            egui::CollapsingHeader::new(i18n::tr(self.locale, "ROM lokal"))
+                .default_open(false)
+                .show(ui, |ui| self.draw_rom_card(ui, ctx));
+        });
+    }
+
+    fn draw_activity_preview(&mut self, ui: &mut egui::Ui) {
+        card(ui, |ui| {
+            ui.horizontal(|ui| {
+                draw_icon(ui, Icon::Activity, 17.0, MUTED);
                 ui.label(
-                    RichText::new(i18n::translate_text(self.locale, &inspection.warning))
+                    RichText::new(i18n::tr(self.locale, "Aktivitas terbaru"))
+                        .size(13.0)
+                        .strong()
+                        .color(TEXT),
+                );
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.button(i18n::tr(self.locale, "Lihat semua")).clicked() {
+                        self.page = Page::Log;
+                    }
+                });
+            });
+            ui.add_space(5.0);
+            if self.log.is_empty() {
+                ui.label(
+                    RichText::new(i18n::tr(self.locale, "Belum ada aktivitas."))
                         .size(10.0)
-                        .color(AMBER),
+                        .color(MUTED),
                 );
             } else {
-                ui.label(
-                    RichText::new(
-                        i18n::tr(self.locale, "Pilih folder untuk melihat nama, ukuran, dan SHA-256 berkas yang ditemukan."),
-                    )
-                    .size(10.0)
-                    .color(MUTED),
-                );
+                for (position, entry) in self.log.iter().rev().take(4).enumerate() {
+                    if position > 0 {
+                        ui.separator();
+                    }
+                    let color = if entry.contains("gagal") || entry.contains("tidak ditemukan") {
+                        RED
+                    } else if entry.contains("berhasil") || entry.contains("Ditemukan") {
+                        TEAL
+                    } else {
+                        MUTED
+                    };
+                    ui.horizontal_top(|ui| {
+                        draw_icon(ui, Icon::Activity, 14.0, color);
+                        ui.label(
+                            RichText::new(i18n::translate_text(self.locale, entry))
+                                .size(10.0)
+                                .color(TEXT),
+                        );
+                    });
+                }
             }
         });
     }
@@ -1318,105 +1622,46 @@ impl DroidNowApp {
 impl eframe::App for DroidNowApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_messages(ctx);
-        self.draw_header(ctx);
-        self.draw_navigation(ctx);
-        egui::TopBottomPanel::bottom("footer")
-            .frame(
-                egui::Frame::new()
-                    .fill(PANEL_DARK)
-                    .inner_margin(egui::Margin::symmetric(20, 7)),
-            )
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let reading_device = self.device_info.as_ref().is_some_and(|(_, result)| {
-                        matches!(result, Err(message) if message == "Membaca identitas perangkat…")
-                    });
-                    let app_status = if self.installing_tools {
-                        i18n::tr(self.locale, "Menyiapkan ADB/Fastboot…")
-                    } else if self.scanning {
-                        i18n::tr(self.locale, "Memindai…")
-                    } else if self.rebooting {
-                        i18n::tr(self.locale, "Memulai ulang…")
-                    } else if self.inspecting_rom {
-                        i18n::tr(self.locale, "Memeriksa berkas…")
-                    } else if self.usb_scanning {
-                        i18n::tr(self.locale, "Memeriksa USB…")
-                    } else if reading_device {
-                        i18n::tr(self.locale, "Membaca informasi perangkat…")
-                    } else {
-                        i18n::tr(self.locale, "Siap")
-                    };
-                    let is_loading = self.scanning
-                        || self.installing_tools
-                        || self.rebooting
-                        || self.inspecting_rom
-                        || self.usb_scanning
-                        || reading_device;
-                    ui.label(
-                        RichText::new(i18n::tr(self.locale, "Status aplikasi:"))
-                            .size(9.0)
-                            .color(MUTED),
-                    );
-                    ui.label(RichText::new(app_status).size(9.0).strong().color(TEAL));
-                    if is_loading {
-                        ui.add(egui::Spinner::new().size(13.0).color(TEAL));
-                    }
-                });
-            });
+        self.draw_sidebar(ctx);
+        self.draw_topbar(ctx);
         let mut request_case_export = false;
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
                     .fill(BG)
-                    .inner_margin(egui::Margin::symmetric(64, 18)),
+                    .inner_margin(egui::Margin::symmetric(26, 20)),
             )
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
                     match self.page {
                         Page::Home => {
-                            ui.horizontal(|ui| {
-                                ui.heading(RichText::new(i18n::tr(self.locale, "Perangkat")).size(24.0).strong().color(TEXT));
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    let tools_ready = self.tool_status.adb_available && self.tool_status.fastboot_available;
-                                    let text = if self.scanning {
-                                        i18n::tr(self.locale, "Memindai…")
-                                    } else if self.installing_tools {
-                                        i18n::tr(self.locale, "Menyiapkan…")
-                                    } else if tools_ready {
-                                        i18n::tr(self.locale, "Pindai perangkat")
-                                    } else {
-                                        i18n::tr(self.locale, "Siapkan ADB/Fastboot")
-                                    };
-                                    let enabled = !self.scanning && !self.installing_tools && !self.rebooting;
-                                    if draw_icon_button(ui, Icon::Scan, text, enabled, 198.0, 40.0, true).clicked() {
-                                        if tools_ready {
-                                            self.start_scan(ctx.clone());
-                                        } else {
-                                            self.start_platform_tools_install(ctx.clone());
-                                        }
-                                    }
-                                });
-                            });
-                            ui.add_space(10.0);
-                            self.draw_connection_banner(ui);
-                            if self.selected_device().is_some() {
-                                ui.add_space(9.0);
-                                self.draw_device_card(ui, ctx);
-                            }
-                            ui.add_space(12.0);
-                            egui::CollapsingHeader::new(i18n::tr(
+                            page_heading(
+                                ui,
                                 self.locale,
-                            "Pemeriksaan lanjutan",
-                            ))
-                            .default_open(false)
-                            .show(ui, |ui| {
-                                ui.add_space(6.0);
-                                self.draw_usb_mode_card(ui);
-                                ui.add_space(8.0);
-                                self.draw_actions(ui);
-                                ui.add_space(8.0);
-                                self.draw_rom_card(ui, ctx);
+                                i18n::tr(self.locale, "Perangkat"),
+                                i18n::tr(self.locale, "Status koneksi dan informasi perangkat."),
+                            );
+                            ui.add_space(12.0);
+                            let available_width = ui.available_width();
+                            let column_gap = ui.spacing().item_spacing.x;
+                            let checks_width = (available_width * 0.32).clamp(270.0, 330.0);
+                            let device_width = (available_width - checks_width - column_gap).max(360.0);
+                            ui.horizontal_top(|ui| {
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(device_width, 0.0),
+                                    Layout::top_down(Align::Min),
+                                    |ui| self.draw_device_card(ui, ctx),
+                                );
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(checks_width, 0.0),
+                                    Layout::top_down(Align::Min),
+                                    |ui| self.draw_checks_panel(ui, ctx),
+                                );
                             });
+                            ui.add_space(14.0);
+                            self.draw_activity_preview(ui);
                         }
                         Page::Log => {
                             page_heading(ui, self.locale, i18n::tr(self.locale, "Riwayat aktivitas"), i18n::tr(self.locale, "Catatan sesi ini tersimpan di komputer dan tidak dikirim secara otomatis."));
@@ -1435,10 +1680,10 @@ impl eframe::App for DroidNowApp {
                                     ui.label(RichText::new(i18n::tr(self.locale, "Belum ada aktivitas.")).size(10.0).color(MUTED));
                                 } else {
                                     egui::ScrollArea::vertical().max_height(620.0).show(ui, |ui| {
-                                        for (index, entry) in self.log.iter().enumerate().rev() {
+                                        for entry in self.log.iter().rev() {
                                             let color = if entry.contains("gagal") || entry.contains("tidak ditemukan") { RED } else if entry.contains("berhasil") || entry.contains("Ditemukan") { TEAL } else { MUTED };
                                             ui.horizontal_top(|ui| {
-                                                ui.label(RichText::new(format!("{:03}", index + 1)).size(9.0).monospace().color(MUTED));
+                                                draw_icon(ui, Icon::Activity, 14.0, color);
                                                 ui.label(RichText::new(i18n::translate_text(self.locale, entry)).size(10.0).color(color));
                                             });
                                             ui.separator();
@@ -1512,21 +1757,23 @@ impl eframe::App for DroidNowApp {
 }
 
 fn card<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::Frame::group(ui.style())
+    egui::Frame::new()
         .fill(PANEL)
         .stroke(Stroke::new(1.0_f32, LINE))
+        .corner_radius(egui::CornerRadius::same(9))
         .inner_margin(egui::Margin::same(14))
-        .show(ui, content)
+        .show(ui, |ui| {
+            let card_width = ui.available_width();
+            ui.set_width(card_width);
+            content(ui)
+        })
         .inner
 }
 
 fn kv_row(ui: &mut egui::Ui, label: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.add_sized(
-            [112.0, 18.0],
-            egui::Label::new(RichText::new(label).size(10.0).color(MUTED)),
-        );
-        ui.label(RichText::new(value).size(10.0).color(TEXT));
+    ui.vertical(|ui| {
+        ui.label(RichText::new(label).size(10.0).color(MUTED));
+        ui.label(RichText::new(value).size(11.0).strong().color(TEXT));
     });
 }
 
@@ -1559,30 +1806,33 @@ fn help_step(ui: &mut egui::Ui, number: &str, title: &str, description: &str) {
 }
 
 fn apply_visuals(ctx: &egui::Context) {
-    let mut visuals = egui::Visuals::dark();
+    let mut visuals = egui::Visuals::light();
     visuals.panel_fill = BG;
     visuals.window_fill = PANEL;
-    visuals.extreme_bg_color = PANEL_DARK;
-    visuals.faint_bg_color = Color32::from_rgb(22, 25, 30);
-    visuals.selection.bg_fill = Color32::from_rgb(51, 42, 56);
-    visuals.selection.stroke = Stroke::new(1.0_f32, VIOLET);
+    visuals.extreme_bg_color = PANEL;
+    visuals.faint_bg_color = SIDEBAR;
+    visuals.selection.bg_fill = TEAL_PALE;
+    visuals.selection.stroke = Stroke::new(1.0_f32, TEAL);
     visuals.widgets.noninteractive.bg_fill = PANEL;
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(0.8_f32, LINE);
     visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, TEXT);
-    visuals.widgets.inactive.bg_fill = PANEL_DARK;
+    visuals.widgets.inactive.bg_fill = PANEL;
     visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
     visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, TEXT);
-    visuals.widgets.hovered.bg_fill = Color32::from_rgb(45, 53, 57);
-    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
-    visuals.widgets.active.bg_fill = Color32::from_rgb(36, 68, 64);
-    visuals.widgets.open.bg_fill = Color32::from_rgb(34, 36, 42);
+    visuals.widgets.hovered.bg_fill = HOVER;
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, TEAL);
+    visuals.widgets.active.bg_fill = TEAL_PALE;
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, TEAL);
+    visuals.widgets.open.bg_fill = SIDEBAR;
     visuals.widgets.open.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
     visuals.window_stroke = Stroke::new(1.0_f32, LINE);
     ctx.set_visuals(visuals);
     let mut style = (*ctx.style()).clone();
-    style.spacing.item_spacing = egui::vec2(8.0, 7.0);
+    style.spacing.item_spacing = egui::vec2(9.0, 8.0);
+    style.spacing.button_padding = egui::vec2(11.0, 7.0);
     style
         .text_styles
-        .insert(egui::TextStyle::Body, FontId::proportional(11.0));
+        .insert(egui::TextStyle::Body, FontId::proportional(12.0));
     ctx.set_style(style);
 }
 
