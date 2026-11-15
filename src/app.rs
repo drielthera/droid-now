@@ -614,7 +614,7 @@ impl DroidNowApp {
     }
 
     fn draw_sidebar(&mut self, ctx: &egui::Context) {
-        let mut locale = self.locale;
+        let locale = self.locale;
         let mut selected_page = self.page;
         let reading_device = self.device_info.as_ref().is_some_and(|(_, result)| {
             matches!(result, Err(message) if message == "Membaca identitas perangkat…")
@@ -708,45 +708,23 @@ impl DroidNowApp {
                     }
                 }
 
-                ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(i18n::tr(locale, "Bahasa"))
-                                .size(10.0)
-                                .color(MUTED),
-                        );
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            egui::ComboBox::from_id_salt("locale-switcher")
-                                .selected_text(locale.tag())
-                                .width(58.0)
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut locale,
-                                        Locale::Indonesian,
-                                        "Bahasa Indonesia",
-                                    );
-                                    ui.selectable_value(&mut locale, Locale::English, "English");
-                                });
-                        });
-                    });
-                    ui.add_space(9.0);
+                ui.add_space((ui.available_height() - 72.0).max(0.0));
+                ui.separator();
+                ui.label(
+                    RichText::new(i18n::tr(locale, "Status aplikasi:"))
+                        .size(9.0)
+                        .color(MUTED),
+                );
+                ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new(i18n::tr(locale, "Status aplikasi:"))
-                            .size(9.0)
-                            .color(MUTED),
+                        RichText::new(app_status)
+                            .size(10.0)
+                            .strong()
+                            .color(if is_loading { TEAL } else { MUTED }),
                     );
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(app_status)
-                                .size(10.0)
-                                .strong()
-                                .color(if is_loading { TEAL } else { MUTED }),
-                        );
-                        if is_loading {
-                            ui.add(egui::Spinner::new().size(13.0).color(TEAL));
-                        }
-                    });
-                    ui.separator();
+                    if is_loading {
+                        ui.add(egui::Spinner::new().size(13.0).color(TEAL));
+                    }
                 });
             });
         self.page = selected_page;
@@ -754,7 +732,7 @@ impl DroidNowApp {
     }
 
     fn draw_topbar(&mut self, ctx: &egui::Context) {
-        let locale = self.locale;
+        let mut locale = self.locale;
         let page_label = match self.page {
             Page::Home => i18n::tr(locale, "Perangkat"),
             Page::Log => i18n::tr(locale, "Aktivitas"),
@@ -789,9 +767,22 @@ impl DroidNowApp {
                         {
                             self.choose_tools_folder(ui.ctx());
                         }
+                        ui.add_space(10.0);
+                        egui::ComboBox::new("locale-switcher", i18n::tr(locale, "Bahasa"))
+                            .selected_text(locale.tag())
+                            .width(58.0)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut locale,
+                                    Locale::Indonesian,
+                                    "Bahasa Indonesia",
+                                );
+                                ui.selectable_value(&mut locale, Locale::English, "English");
+                            });
                     });
                 });
             });
+        self.locale = locale;
     }
 
     fn connection_state(&self) -> (&'static str, &'static str, Color32) {

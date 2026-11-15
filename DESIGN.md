@@ -6,7 +6,7 @@ Design Read: utilitas desktop diagnosis perangkat Android untuk pengguna teknis,
 DroidNow memakai tagline "Your devices. One solution". UI tetap berpusat pada data perangkat, koneksi ADB/Fastboot, pemeriksaan USB baca-saja, reboot, dan preflight ROM lokal. Font sans bawaan dipakai untuk keterbacaan; monospace hanya untuk nilai teknis.
 
 ## Komposisi
-Arah komposisi mengikuti referensi Acti yang dipilih pengguna: sidebar kiri yang sempit, breadcrumb dan aksi tools di bar atas, kartu perangkat lebar di area utama, panel pemeriksaan/tindakan di kanan, lalu aktivitas terbaru. Sidebar hanya memuat tujuan nyata: Perangkat, Aktivitas, Panduan, Tentang. Status aplikasi dan pemilih bahasa berada di bawah.
+Arah komposisi mengikuti referensi Acti yang dipilih pengguna: sidebar kiri yang sempit, breadcrumb dan aksi tools di bar atas, kartu perangkat lebar di area utama, panel pemeriksaan/tindakan di kanan, lalu aktivitas terbaru. Sidebar hanya memuat tujuan nyata: Perangkat, Aktivitas, Panduan, Tentang. Status aplikasi tetap di kaki sidebar; bahasa ID/EN berada di bar atas di samping aksi tools agar selalu terlihat.
 
 Kartu utama mengutamakan satu keputusan: siapkan ADB/Fastboot atau pindai perangkat. Ikon ponsel garis sederhana dipakai karena langsung mewakili perangkat yang diperiksa, bukan sebagai ilustrasi dekoratif. Model, Android, dan status koneksi hanya berasal dari hasil nyata. Jika belum ada perangkat, kartu menampilkan empty state dan tidak mengisi metrik contoh. Detail teknis berada di disclosure. Panel kanan memuat ketersediaan tools, deteksi USB baca-saja, reboot dengan konfirmasi, dan pemeriksaan ROM lokal yang dilipat. Aktivitas terbaru hanya berasal dari log sesi nyata; tidak ada tanggal, durasi, perangkat, atau angka contoh.
 
