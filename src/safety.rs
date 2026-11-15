@@ -194,6 +194,9 @@ pub struct ArchivedRomFile {
 pub struct ArchivedRomInspection {
     pub folder_name: String,
     pub codename_hint: String,
+    pub region_hint: String,
+    pub package_identity_conflict: bool,
+    pub compatibility_check: crate::rom_check::RomPackageCheck,
     pub files: Vec<ArchivedRomFile>,
     pub script_hint: String,
     pub provenance_status: String,
@@ -377,6 +380,9 @@ pub fn create_case_archive(
     let archived_rom_inspection = rom_inspection.map(|inspection| ArchivedRomInspection {
         folder_name: redact_sensitive_text(&inspection.folder_name, &identifiers),
         codename_hint: inspection.codename_hint.clone(),
+        region_hint: inspection.region_hint.clone(),
+        package_identity_conflict: inspection.package_identity_conflict,
+        compatibility_check: crate::rom_check::check_package(sanitized_info.as_deref(), inspection),
         files: inspection
             .entries
             .iter()
@@ -442,6 +448,7 @@ pub fn create_case_archive(
         support_matrix: support_matrix(),
         capability_boundary: vec![
             "diagnose: read-only probes only",
+            "ROM package check: compare visible codename/region hints only; never authorizes a write",
             "prepare: unavailable",
             "write / flash / unlock / relock / erase / format / partition write: blocked",
             "reboot: existing explicitly confirmed convenience action; not a write/repair authorization",
@@ -539,6 +546,8 @@ mod tests {
         let rom = RomInspection {
             folder_name: "rolex-test-package".into(),
             codename_hint: "rolex".into(),
+            region_hint: "tidak terbaca".into(),
+            package_identity_conflict: false,
             entries: vec![crate::core::RomEntry {
                 kind: "IMAGE".into(),
                 name: "images/boot.img".into(),
@@ -562,6 +571,13 @@ mod tests {
             &["Ditemukan perangkat ABC1234567".into()],
         );
         let json = serde_json::to_string(&archive).unwrap();
+        let rom_check = &archive.rom_inspection.as_ref().unwrap().compatibility_check;
+        assert!(!rom_check.writes_allowed);
+        assert_eq!(
+            rom_check.status,
+            crate::rom_check::RomCheckStatus::InsufficientEvidence
+        );
+        assert!(json.contains("\"writes_allowed\":false"));
         assert!(!json.contains("ABC1234567"));
         assert!(!json.contains("123456789012345"));
         assert!(json.contains("AB****67"));

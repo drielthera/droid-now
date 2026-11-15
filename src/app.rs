@@ -1167,6 +1167,73 @@ impl DroidNowApp {
                         .size(9.0)
                         .color(MUTED),
                 );
+                let selected_serial = self.selected_device().map(|device| device.serial.as_str());
+                let device_info = self.device_info.as_ref().and_then(|(serial, result)| {
+                    (Some(serial.as_str()) == selected_serial)
+                        .then(|| result.as_ref().ok().map(String::as_str))
+                        .flatten()
+                });
+                let package_check = crate::rom_check::check_package(device_info, inspection);
+                let (check_text, check_color) = match package_check.status {
+                    crate::rom_check::RomCheckStatus::Mismatch => (
+                        "Henti: codename atau region perangkat dan paket ROM berbeda.",
+                        RED,
+                    ),
+                    crate::rom_check::RomCheckStatus::CandidateMatch => (
+                        "Label codename dan region cocok; sumber dan keamanan firmware belum terverifikasi.",
+                        AMBER,
+                    ),
+                    crate::rom_check::RomCheckStatus::InsufficientEvidence => (
+                        "Belum dapat dipastikan: codename dan region perangkat/paket belum terbaca lengkap.",
+                        AMBER,
+                    ),
+                };
+                ui.add_space(5.0);
+                ui.label(
+                    RichText::new(i18n::tr(self.locale, "Pemeriksaan kecocokan paket"))
+                        .size(10.0)
+                        .strong()
+                        .color(TEXT),
+                );
+                ui.label(
+                    RichText::new(i18n::tr(self.locale, check_text))
+                        .size(9.0)
+                        .color(check_color),
+                );
+                let device_codename = package_check
+                    .device_codename
+                    .as_deref()
+                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+                let device_region = package_check
+                    .device_region
+                    .as_deref()
+                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+                let package_codename = package_check
+                    .package_codename
+                    .as_deref()
+                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+                let package_region = package_check
+                    .package_region
+                    .as_deref()
+                    .unwrap_or(i18n::tr(self.locale, "Belum terbaca"));
+                ui.label(
+                    RichText::new(format!(
+                        "{}: {device_codename} · {device_region}   |   {}: {package_codename} · {package_region}",
+                        i18n::tr(self.locale, "Perangkat"),
+                        i18n::tr(self.locale, "Paket ROM"),
+                    ))
+                    .size(9.0)
+                    .monospace()
+                    .color(MUTED),
+                );
+                ui.label(
+                    RichText::new(i18n::tr(
+                        self.locale,
+                        "Pemeriksaan ini tidak memberi izin flash; penulisan firmware tetap tidak tersedia.",
+                    ))
+                    .size(9.0)
+                    .color(AMBER),
+                );
                 ui.label(
                     RichText::new(i18n::tr(
                         self.locale,

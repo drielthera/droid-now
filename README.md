@@ -10,7 +10,7 @@ Perangkat Xiaomi lain dan Android lain dapat muncul dalam pemindaian generik, te
 
 Petunjuk mode USB hanya berasal dari VID:PID yang teramati saat enumerasi. Petunjuk tersebut tidak memverifikasi protokol, identitas, otorisasi, kecocokan firmware, atau dukungan flashing. Lihat [batas dan pemetaan deteksi USB](USB_MODE_DETECTION.md).
 
-Pemeriksaan folder ROM menghitung ukuran dan SHA-256 berkas yang dikenal. Hash lokal hanya sidik jari berkas; hash itu tidak membuktikan sumber resmi atau kecocokan firmware. Katalog SHA-256 resmi yang terverifikasi belum tersedia.
+Pemeriksaan folder ROM menghitung ukuran dan SHA-256 berkas yang dikenal, lalu membandingkan petunjuk codename/region paket (nama folder atau `android-info.txt`) dengan identitas perangkat yang terbaca. Ketidaksesuaian yang diketahui ditandai **Henti**; bila semua label cocok, hasilnya tetap hanya kandidat. Nama folder dapat keliru, katalog SHA-256 tepercaya belum tersedia, dan pemeriksaan ini tidak membuktikan sumber resmi, tanda tangan, kompatibilitas penuh, atau keamanan firmware. Penulisan firmware tetap tidak tersedia.
 
 Laporan JSON disimpan di komputer. DroidNow menyamarkan sejumlah pengenal, tetapi teks bebas masih dapat memuat informasi sensitif. Tinjau laporan sebelum membagikannya.
 
@@ -45,7 +45,7 @@ cargo audit
 
 ## Hasil uji dan batas yang belum diuji
 
-- Linux x86_64: `cargo fmt --check`, 23 tes, `cargo check`, `cargo build`, dan Clippy untuk semua target dengan peringatan sebagai error lulus. Tes mencakup pemetaan USB berbasis fixture, timeout proses, dan penghentian proses turunan yang mewarisi pipe.
+- Linux x86_64: `cargo fmt --check`, 33 tes, `cargo build`, dan Clippy untuk semua target dengan peringatan sebagai error lulus. Tes mencakup mismatch codename/region, bukti tidak lengkap yang fail-closed, metadata ambigu, pemetaan USB berbasis fixture, timeout proses, dan penghentian proses turunan yang mewarisi pipe.
 - `cargo audit` tidak menemukan kerentanan yang diketahui, tetapi memberi 4 peringatan dependency tidak terawat tanpa pembaruan perbaikan yang tersedia: `ttf-parser`, `zbus_names`, `zvariant`, dan `zvariant_derive`.
 - Deteksi USB belum diuji dengan perangkat fisik; sesi ini tidak menyediakan enumerasi USB. Perangkat Android fisik dan driver/USB Windows 11 juga belum diuji. macOS belum dibangun atau diuji.
 - Build Windows tidak dibuat.
@@ -58,6 +58,7 @@ Cargo.toml       Metadata paket dan dependensi Rust
 src/main.rs      Entry point aplikasi native
 src/app.rs       Antarmuka, aktivitas, dan alur pengguna
 src/core.rs      ADB/Fastboot, pemeriksaan, hashing, dan parsing
+src/rom_check.rs Perbandingan read-only petunjuk codename/region paket
 src/process.rs   Runner proses dengan timeout dan penghentian grup proses
 src/safety.rs    Cakupan dukungan, batas operasi, dan laporan diagnostik
 src/usb_modes.rs Pemetaan VID:PID untuk petunjuk mode USB baca-saja

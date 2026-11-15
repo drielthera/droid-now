@@ -4,6 +4,7 @@ mod app;
 mod core;
 mod i18n;
 mod process;
+mod rom_check;
 mod safety;
 mod usb_modes;
 

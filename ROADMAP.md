@@ -99,6 +99,7 @@ Membedakan bukti integritas dari bukti provenance tanpa mengubah perangkat.
 ### Pekerjaan
 
 - Hash SHA-256 paket dan komponen; cocokkan hanya dengan nilai pembanding yang diterbitkan sumber tepercaya.
+- Pra-pemeriksaan read-only membandingkan petunjuk codename/region paket dari nama folder atau `android-info.txt` dengan identitas perangkat; mismatch berarti berhenti, sementara kandidat cocok tetap tidak memberi izin tulis dan tidak membuktikan provenance.
 - Validasi signature/VBMeta, hash/hashtree descriptor, chained partitions, vbmeta digest, dan rollback metadata bila tersedia.
 - Tampilkan empat klaim terpisah: `signature_valid`, `vbmeta_consistent`, `attestation_verified`, `official_provenance`.
 - Klasifikasikan sumber: `official_source`, `official_mirror_with_matching_hash`, `community_archive_unverified`, `unknown`.

@@ -48,6 +48,8 @@ pub struct RomEntry {
 pub struct RomInspection {
     pub folder_name: String,
     pub codename_hint: String,
+    pub region_hint: String,
+    pub package_identity_conflict: bool,
     pub entries: Vec<RomEntry>,
     pub script_hint: String,
     pub provenance_status: String,
@@ -813,17 +815,9 @@ pub fn inspect_rom_folder(path: &Path) -> Result<RomInspection, String> {
         list_folder(&images_folder, "images/", &mut entries)?;
     }
     entries.sort_by_key(|entry| entry.name.to_lowercase());
-    let all_names = entries
-        .iter()
-        .map(|entry| entry.name.to_ascii_lowercase())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let codename_hint =
-        if folder_name.to_ascii_lowercase().contains("rolex") || all_names.contains("rolex") {
-            "rolex".to_string()
-        } else {
-            "tidak terbaca".to_string()
-        };
+    let hints = crate::rom_check::inspect_package_hints(path, &folder_name);
+    let codename_hint = hints.codename.unwrap_or_else(|| "tidak terbaca".into());
+    let region_hint = hints.region.unwrap_or_else(|| "tidak terbaca".into());
     let scripts = entries
         .iter()
         .filter(|entry| {
@@ -840,6 +834,8 @@ pub fn inspect_rom_folder(path: &Path) -> Result<RomInspection, String> {
     Ok(RomInspection {
         folder_name,
         codename_hint,
+        region_hint,
+        package_identity_conflict: hints.conflicting_codename_sources,
         entries: entries.into_iter().take(150).collect(),
         script_hint,
         provenance_status: "Belum dapat dipastikan: katalog SHA-256 resmi belum tersedia.".into(),
