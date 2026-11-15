@@ -534,7 +534,7 @@ impl DroidNowApp {
                             );
                         });
                         ui.label(
-                            RichText::new("Diagnostik perangkat Android")
+                            RichText::new("Your devices. One solution")
                                 .size(11.0)
                                 .color(MUTED),
                         );
@@ -606,14 +606,14 @@ impl DroidNowApp {
                 }
                 ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
                     ui.label(
-                        RichText::new("Tujuan: semua model Xiaomi")
+                        RichText::new("Diagnostik ADB & Fastboot")
                             .size(9.0)
-                            .color(AMBER),
+                            .color(MUTED),
                     );
                     ui.label(
-                        RichText::new("Validasi awal: Redmi 4A (rolex)")
+                        RichText::new("Baca-saja · reboot terkonfirmasi")
                             .size(8.5)
-                            .color(MUTED),
+                            .color(AMBER),
                     );
                     ui.label(
                         RichText::new(format!("DroidNow · v{}", env!("CARGO_PKG_VERSION")))
@@ -676,7 +676,7 @@ impl DroidNowApp {
                         if draw_icon_button(ui, Icon::Folder, "Pilih folder Platform-Tools", true, ui.available_width(), 36.0, false).clicked() {
                             self.choose_tools_folder(ui.ctx());
                         }
-                        if cfg!(target_os = "windows") && draw_icon_button(ui, Icon::Shield, "Panduan driver Xiaomi", true, ui.available_width(), 36.0, false).clicked() {
+                        if cfg!(target_os = "windows") && draw_icon_button(ui, Icon::Shield, "Petunjuk driver USB", true, ui.available_width(), 36.0, false).clicked() {
                             self.show_driver_dialog = true;
                         }
                     });
@@ -1117,11 +1117,6 @@ impl DroidNowApp {
                         .color(MUTED),
                 );
             } else if let Some((_path, inspection)) = &self.rom {
-                let hint_color = if inspection.codename_hint == "rolex" {
-                    GREEN
-                } else {
-                    AMBER
-                };
                 ui.horizontal_wrapped(|ui| {
                     ui.label(
                         RichText::new(&inspection.folder_name)
@@ -1129,15 +1124,6 @@ impl DroidNowApp {
                             .strong()
                             .monospace()
                             .color(TEXT),
-                    );
-                    ui.label(
-                        RichText::new(format!(
-                            "Petunjuk kode perangkat: {}",
-                            inspection.codename_hint
-                        ))
-                        .size(9.0)
-                        .monospace()
-                        .color(hint_color),
                     );
                 });
                 let summary = if inspection.entries.is_empty() {
@@ -1151,13 +1137,9 @@ impl DroidNowApp {
                 };
                 ui.label(RichText::new(summary).size(9.0).color(MUTED));
                 ui.label(
-                    RichText::new(if inspection.verified_catalog_match {
-                        "Sumber resmi dan kecocokan firmware: terverifikasi"
-                    } else {
-                        "Sumber resmi dan kecocokan firmware: belum dapat dipastikan"
-                    })
-                    .size(9.0)
-                    .color(AMBER),
+                    RichText::new("Sumber dan kecocokan firmware belum dapat dipastikan.")
+                        .size(9.0)
+                        .color(AMBER),
                 );
                 egui::ScrollArea::vertical()
                     .max_height(78.0)
@@ -1349,7 +1331,7 @@ impl eframe::App for DroidNowApp {
                                 ui.vertical(|ui| {
                                     ui.label(RichText::new("Diagnostik perangkat Android").size(11.0).strong().color(MUTED));
                                     ui.heading(RichText::new("Perangkat dan koneksi").size(24.0).strong().color(TEXT));
-                                    ui.label(RichText::new("Tujuan: diagnostik semua model Xiaomi. Validasi awal: Redmi 4A (rolex); varian lain masih perlu diperiksa.").size(11.0).color(MUTED));
+                                    ui.label(RichText::new("Baca informasi perangkat dan periksa berkas lokal dengan aman.").size(11.0).color(MUTED));
                                 });
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let tools_ready = self.tool_status.adb_available && self.tool_status.fastboot_available;
@@ -1390,7 +1372,7 @@ impl eframe::App for DroidNowApp {
                                         draw_icon(ui, Icon::Shield, 17.0, AMBER);
                                         ui.add(
                                             egui::Label::new(
-                                                RichText::new("Tujuan: semua model Xiaomi. Validasi awal hanya Redmi 4A (rolex); pemeriksaan ini baca-saja dan setiap mulai ulang meminta konfirmasi.")
+                                                RichText::new("DroidNow membaca informasi perangkat dan memeriksa berkas lokal. Memulai ulang selalu meminta konfirmasi; operasi penulisan tidak tersedia.")
                                                     .size(10.0)
                                                     .color(TEXT),
                                             )
@@ -1435,8 +1417,8 @@ impl eframe::App for DroidNowApp {
                                 ui.label(RichText::new("Fungsi").size(11.0).strong().color(TEXT));
                                 ui.label(RichText::new("Mendeteksi perangkat yang terlihat melalui ADB/Fastboot, membaca informasi yang tersedia, memeriksa SHA-256 berkas pilihan, dan menyimpan laporan lokal dengan sebagian data disamarkan.").size(10.0).color(MUTED));
                                 ui.add_space(10.0);
-                                ui.label(RichText::new("Cakupan validasi model").size(11.0).strong().color(TEXT));
-                                ui.label(RichText::new("Tujuan produk adalah diagnostik untuk semua model Xiaomi. Validasi awal baru mencakup Redmi 4A (rolex); model, SoC, dan region lain belum divalidasi. Perangkat Android lain dapat terdeteksi secara generik.").size(10.0).color(MUTED));
+                                ui.label(RichText::new("Catatan pemeriksaan").size(11.0).strong().color(TEXT));
+                                ui.label(RichText::new("Hasil pemeriksaan membantu meninjau informasi yang tersedia; hasil ini tidak membuktikan sumber atau kecocokan firmware.").size(10.0).color(MUTED));
                                 ui.add_space(10.0);
                                 ui.label(RichText::new("Keamanan").size(11.0).strong().color(AMBER));
                                 ui.label(RichText::new("DroidNow tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi. Setiap mulai ulang meminta konfirmasi.").size(10.0).color(MUTED));
@@ -1456,7 +1438,7 @@ impl eframe::App for DroidNowApp {
                                     draw_icon(ui, Icon::Shield, 17.0, AMBER);
                                     ui.label(RichText::new("Catatan keamanan").size(13.0).strong().color(AMBER));
                                 });
-                                ui.label(RichText::new("Hash berkas lokal tidak memastikan sumber resmi, model, wilayah, atau keamanan firmware.").size(10.0).color(MUTED));
+                                ui.label(RichText::new("Hash berkas lokal tidak membuktikan sumber atau keamanan firmware.").size(10.0).color(MUTED));
                                 ui.add_space(5.0);
                                 ui.label(RichText::new("Jangan gunakan hasil pemeriksaan sebagai izin untuk memasang firmware atau mengubah perangkat.").size(10.0).color(AMBER));
                             });
@@ -1581,11 +1563,9 @@ impl DroidNowApp {
             self.show_driver_dialog = false;
             return;
         }
-        const XIAOMI_DRIVER_GUIDE: &str = "https://new.c.mi.com/mx/post/11443";
         let mut close = false;
-        let mut open_guide = false;
-        egui::Window::new("Driver USB Xiaomi untuk Windows")
-            .id(egui::Id::new("xiaomi-driver-guide"))
+        egui::Window::new("Petunjuk driver USB")
+            .id(egui::Id::new("generic-driver-help"))
             .collapsible(false)
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -1593,27 +1573,18 @@ impl DroidNowApp {
                 ui.set_min_width(390.0);
                 ui.label(RichText::new("Pemasangan driver memerlukan tindakan Anda di Windows.").size(13.0).strong().color(TEXT));
                 ui.add_space(6.0);
-                ui.label(RichText::new("DroidNow tidak mengunduh atau menjalankan installer driver secara otomatis. Panduan Xiaomi menjelaskan paket MiFlash dan pemasangan ulang driver Windows.").size(10.0).color(MUTED));
+                ui.label(RichText::new("DroidNow tidak mengunduh atau menjalankan installer driver secara otomatis. Driver yang diperlukan bergantung pada perangkat dan versi Windows.").size(10.0).color(MUTED));
                 ui.add_space(7.0);
-                ui.label(RichText::new("Jalankan MiFlash secara manual dan setujui prompt Administrator/UAC Windows sendiri hanya jika Anda ingin memasang driver. Jangan lanjutkan bila sumber atau penerbit paket tidak cocok.").size(10.0).color(AMBER));
+                ui.label(RichText::new("Jika perangkat tidak terdeteksi, periksa kabel dan port USB. Pasang driver ADB/Fastboot hanya dari sumber tepercaya, lalu tinjau penerbit serta permintaan izin Windows sebelum melanjutkan.").size(10.0).color(AMBER));
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     if ui.button("Tutup").clicked() {
                         close = true;
                     }
-                    if ui.button(RichText::new("Buka panduan resmi Xiaomi").strong()).clicked() {
-                        open_guide = true;
-                    }
                 });
             });
         if close {
             self.show_driver_dialog = false;
-        }
-        if open_guide {
-            match webbrowser::open(XIAOMI_DRIVER_GUIDE) {
-                Ok(()) => self.log("Panduan driver Xiaomi dibuka di browser. Pemasangan tetap dilakukan manual di Windows."),
-                Err(error) => self.log(format!("Panduan Xiaomi gagal dibuka: {error}")),
-            }
         }
     }
 }

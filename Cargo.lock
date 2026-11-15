@@ -706,7 +706,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "wait-timeout",
- "webbrowser",
  "zip",
 ]
 
