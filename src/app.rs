@@ -1,5 +1,6 @@
 use crate::core::{self, Device, RomInspection, ScanResult, ToolLocator, ToolStatus};
 use crate::safety;
+use crate::usb_modes::{self, DetectedUsbMode};
 use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, RichText, Stroke};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -198,12 +199,16 @@ enum UiMessage {
     Reboot(String, Result<String, String>),
     Rom(PathBuf, Result<RomInspection, String>),
     ToolsInstalled(Result<PathBuf, String>),
+    UsbModes(Result<Vec<DetectedUsbMode>, String>),
 }
 
 pub struct DroidNowApp {
     tools: ToolLocator,
     tool_status: ToolStatus,
     devices: Vec<Device>,
+    usb_modes: Vec<DetectedUsbMode>,
+    usb_scanning: bool,
+    usb_scan_error: Option<String>,
     selected_index: Option<usize>,
     device_info: Option<(String, Result<String, String>)>,
     rom: Option<(PathBuf, RomInspection)>,
@@ -229,6 +234,9 @@ impl DroidNowApp {
             tools: ToolLocator::default(),
             tool_status: ToolLocator::default().status(),
             devices: Vec::new(),
+            usb_modes: Vec::new(),
+            usb_scanning: false,
+            usb_scan_error: None,
             selected_index: None,
             device_info: None,
             rom: None,
@@ -261,6 +269,15 @@ impl DroidNowApp {
             return;
         }
         self.scanning = true;
+        self.usb_scanning = true;
+        self.usb_scan_error = None;
+        let usb_sender = self.sender.clone();
+        let usb_ctx = ctx.clone();
+        thread::spawn(move || {
+            let result = usb_modes::scan_usb_modes();
+            let _ = usb_sender.send(UiMessage::UsbModes(result));
+            usb_ctx.request_repaint();
+        });
         let tools = self.tools.clone();
         let sender = self.sender.clone();
         thread::spawn(move || {
@@ -359,6 +376,19 @@ impl DroidNowApp {
                     }
                     if let Some(device) = self.selected_device().cloned() {
                         self.start_info(device, ctx.clone());
+                    }
+                }
+                UiMessage::UsbModes(result) => {
+                    self.usb_scanning = false;
+                    match result {
+                        Ok(modes) => {
+                            self.usb_modes = modes;
+                            self.usb_scan_error = None;
+                        }
+                        Err(error) => {
+                            self.usb_modes.clear();
+                            self.usb_scan_error = Some(error);
+                        }
                     }
                 }
                 UiMessage::Info(serial, result) => {
@@ -982,6 +1012,71 @@ impl DroidNowApp {
         });
     }
 
+    fn draw_usb_mode_card(&self, ui: &mut egui::Ui) {
+        card(ui, |ui| {
+            ui.horizontal(|ui| {
+                draw_icon(ui, Icon::Device, 18.0, MUTED);
+                ui.label(
+                    RichText::new("Mode USB teramati")
+                        .size(14.0)
+                        .strong()
+                        .color(TEXT),
+                );
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.label(RichText::new("Baca-saja").size(9.0).color(AMBER));
+                });
+            });
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new("Petunjuk mode dari VID:PID yang terlihat pada sistem.")
+                    .size(10.0)
+                    .color(MUTED),
+            );
+            if self.usb_scanning {
+                ui.label(
+                    RichText::new("Memeriksa daftar perangkat USB…")
+                        .size(10.0)
+                        .color(MUTED),
+                );
+            } else if self.usb_scan_error.is_some() {
+                ui.label(
+                    RichText::new("Daftar perangkat USB tidak dapat dibaca saat ini.")
+                        .size(10.0)
+                        .color(AMBER),
+                );
+            } else if self.usb_modes.is_empty() {
+                ui.label(
+                    RichText::new("Tidak ada ID USB yang dikenali untuk petunjuk mode.")
+                        .size(10.0)
+                        .color(MUTED),
+                );
+            } else {
+                ui.add_space(3.0);
+                for detected in &self.usb_modes {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(detected.mode.label()).size(10.0).color(TEXT));
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            ui.label(
+                                RichText::new(detected.usb_id())
+                                    .size(9.0)
+                                    .monospace()
+                                    .color(MUTED),
+                            );
+                        });
+                    });
+                }
+            }
+            ui.add_space(5.0);
+            ui.label(
+                RichText::new(
+                    "Pemindaian ini tidak mengirim perintah USB. Label tidak memverifikasi protokol atau dukungan flashing.",
+                )
+                .size(9.0)
+                .color(AMBER),
+            );
+        });
+    }
+
     fn draw_actions(&mut self, ui: &mut egui::Ui) {
         card(ui, |ui| {
             ui.horizontal(|ui| {
@@ -1358,6 +1453,8 @@ impl eframe::App for DroidNowApp {
                             self.draw_connection_banner(ui);
                             ui.add_space(9.0);
                             self.draw_device_card(ui, ctx);
+                            ui.add_space(9.0);
+                            self.draw_usb_mode_card(ui);
                             ui.add_space(9.0);
                             self.draw_actions(ui);
                             ui.add_space(9.0);

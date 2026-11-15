@@ -4,6 +4,7 @@ mod app;
 mod core;
 mod process;
 mod safety;
+mod usb_modes;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
