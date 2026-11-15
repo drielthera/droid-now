@@ -1494,19 +1494,39 @@ impl eframe::App for DroidNowApp {
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    let app_status = if self.scanning {
-                        i18n::tr(self.locale, "Memindai…")
-                    } else if self.installing_tools {
+                    let reading_device = self.device_info.as_ref().is_some_and(|(_, result)| {
+                        matches!(result, Err(message) if message == "Membaca identitas perangkat…")
+                    });
+                    let app_status = if self.installing_tools {
                         i18n::tr(self.locale, "Menyiapkan ADB/Fastboot…")
+                    } else if self.scanning {
+                        i18n::tr(self.locale, "Memindai…")
+                    } else if self.rebooting {
+                        i18n::tr(self.locale, "Memulai ulang…")
+                    } else if self.inspecting_rom {
+                        i18n::tr(self.locale, "Memeriksa berkas…")
+                    } else if self.usb_scanning {
+                        i18n::tr(self.locale, "Memeriksa USB…")
+                    } else if reading_device {
+                        i18n::tr(self.locale, "Membaca informasi perangkat…")
                     } else {
                         i18n::tr(self.locale, "Siap")
                     };
+                    let is_loading = self.scanning
+                        || self.installing_tools
+                        || self.rebooting
+                        || self.inspecting_rom
+                        || self.usb_scanning
+                        || reading_device;
                     ui.label(
                         RichText::new(i18n::tr(self.locale, "Status aplikasi:"))
                             .size(9.0)
                             .color(MUTED),
                     );
                     ui.label(RichText::new(app_status).size(9.0).strong().color(GREEN));
+                    if is_loading {
+                        ui.add(egui::Spinner::new().size(13.0).color(GREEN));
+                    }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let fastboot_connected =
                             self.devices.iter().any(|device| device.mode == "fastboot");
