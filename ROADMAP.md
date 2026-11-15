@@ -1,45 +1,75 @@
 # ROADMAP DroidNow
 
-**Tujuan produk:** membangun diagnostik yang mencakup seluruh model Xiaomi. Cakupan model, SoC, firmware, region, dan pemulihan harus dibuktikan satu per satu; Redmi 4A (`rolex`) hanya target validasi awal, bukan batas produk.
+## 1. Arah produk dan cakupan
 
-**Prinsip utama:** DroidNow tidak menulis apa pun sebelum identitas perangkat, kecocokan firmware, status bootloader, dan risiko operasi dapat dibuktikan. Nilai `unknown`, konflik metadata, indeks rollback yang tidak terbaca, atau provenance yang tidak jelas berarti **berhenti atau read-only**, bukan asumsi aman.
+**Tujuan jangka panjang:** membangun alat diagnostik dan pemulihan Android yang berguna lintas merek, keluarga perangkat, dan model. DroidNow dirancang dengan lapisan umum Android serta adapter dan bukti dukungan yang spesifik per merek/OEM dan perangkat.
 
-## Kontrak keselamatan
+**Cakupan merek tahap awal bersifat multi-merek.** Xiaomi adalah salah satu keluarga merek yang masuk prioritas awal, bukan batas produk. Daftar merek lain untuk gelombang awal belum dirinci dalam dokumen ini; nama merek dan urutannya perlu ditetapkan sebelum klaim dukungan dibuat.
+
+**Redmi 4A (`rolex`) adalah satu contoh perangkat Xiaomi untuk riset/validasi awal.** Ia bukan sasaran produk, bukan satu-satunya perangkat yang hendak didukung, dan bukan alasan untuk membatasi produk pada Xiaomi. Hasil uji satu perangkat tidak membuktikan dukungan bagi seluruh model, SoC, region, firmware, maupun metode pemulihan.
+
+### Tingkat dukungan
+
+- **Terdeteksi:** ADB/Fastboot atau pemindaian generik melihat perangkat. Ini bukan validasi model.
+- **Diagnostik tersedia:** aplikasi dapat membaca informasi yang tersedia tanpa mengubah perangkat; hasil dan batas validasi tetap harus dijelaskan.
+- **Divalidasi per model/varian:** bukti untuk identitas, SoC/SKU, region, versi sistem, dan jalur pemulihan tertentu sudah dicatat.
+- **Operasi pemulihan didukung:** hanya dapat diklaim untuk pasangan perangkat-paket-metode yang telah lulus gate keselamatan dan diverifikasi secara eksplisit.
+
+## 2. Kondisi implementasi saat ini
+
+| Area | Status saat ini | Batas klaim |
+|---|---|---|
+| Pemindaian dan diagnosis ADB/Fastboot | Tersedia sebagai pemeriksaan baca-saja dasar | Perangkat terdeteksi tidak otomatis berarti model atau firmware telah divalidasi |
+| Pemeriksaan folder ROM lokal | Tersedia baca-saja: menghitung hash lokal dan membandingkan petunjuk codename/region | Belum ada katalog hash tepercaya; hasil cocok hanya kandidat, bukan bukti resmi atau izin menulis |
+| Mulai ulang | Tersedia dengan konfirmasi eksplisit | Bukan tindakan flash atau perbaikan |
+| Dukungan per merek/perangkat | Bertahap; Xiaomi salah satu keluarga awal yang dituju | Redmi 4A (`rolex`) hanya satu contoh dengan validasi terbatas; status firmware/ARB/AVB/provenance tetap belum dipastikan |
+| Flash, unlock/relock bootloader, hapus/format data, tulis partisi, bypass | Belum diimplementasikan | Tidak boleh ditampilkan sebagai kemampuan yang sudah tersedia |
+
+## 3. Daftar keluarga merek dan contoh validasi
+
+| Keluarga/cakupan | Peran dalam roadmap | Status bukti |
+|---|---|---|
+| Xiaomi | Salah satu keluarga merek prioritas pada dukungan awal multi-merek | Kebijakan dan riset awal tersedia; setiap model, SKU, SoC, region, firmware, dan operasi tetap perlu validasi tersendiri |
+| Redmi 4A (`rolex`) | Contoh perangkat dalam keluarga Xiaomi untuk riset/validasi | Bukan sasaran tunggal atau batas produk; bukti firmware dan status ARB/AVB belum memadai untuk klaim pemulihan |
+| Keluarga merek lain pada gelombang awal | Termasuk dalam arah multi-merek; nama dan urutan belum ditetapkan di roadmap ini | Jangan mengklaim dukungan sebelum adapter, matriks bukti, dan pengujian per model tersedia |
+| Android generik | Lapisan umum untuk deteksi, koneksi, dan diagnostik yang tidak spesifik OEM | Keberhasilan membaca perangkat tidak membuktikan dukungan firmware/pemulihan lintas merek |
+
+## 4. Kontrak keselamatan
 
 1. **Read-only sebagai default.** Probe identitas, mode, slot, versi, status bootloader/Verified Boot, dan rollback index tidak boleh mengubah data.
 2. **Gate sebelum tulis.** Sebelum setiap operasi destruktif atau penulisan, DroidNow memeriksa model, SKU/codename, provenance hardware/region, region/variant, status bootloader, versi Android/MIUI/HyperOS, slot A/B bila ada, hash artefak, kompatibilitas partisi, dan rollback metadata bila tersedia.
 3. **Tidak ada inferensi berlebihan.** Nomor MIUI, tanggal, API level, label `Global`/`China`, boot normal, atau signature/VBMeta saja tidak membuktikan firmware resmi dan cocok. Pisahkan hasil `signature_valid`, `vbmeta_consistent`, `attestation_verified`, dan `official_provenance`.
-4. **Anti-rollback adalah hard stop.** AVB dapat menolak image dengan `rollback_index` lebih rendah dari `stored_rollback_index`; indeks tersimpan diperbarui sebelum boot. [1] Karena matriks Xiaomi lintas model/region tidak tersedia, `getvar anti` yang kosong bukan bukti bahwa perangkat bebas ARB.
+4. **Anti-rollback adalah hard stop.** AVB dapat menolak image dengan `rollback_index` lebih rendah dari `stored_rollback_index`; indeks tersimpan diperbarui sebelum boot. [1] Karena matriks perangkat lintas merek/model/region tidak tersedia, `getvar anti` yang kosong bukan bukti bahwa perangkat bebas ARB.
 5. **Relock paling berisiko.** Relock hanya boleh tersedia setelah kecocokan stock dibuktikan eksplisit untuk hardware, codename, region, build, hash, partisi, dan provenance. Jika ada keraguan, sediakan tombol **Berhenti dan eskalasi**.
 6. **EDL/test point adalah opsi pemulihan terakhir, bukan jalur universal.** Pada sebagian perangkat dengan bootloader terkunci, flashing Fastboot normal tidak tersedia; bila pemulihan Android/Fastboot normal juga tidak mungkin, EDL/test point dapat menjadi jalur terakhir. Deteksi Qualcomm 9008, bila tersedia, hanya observasi baca-saja dan bukan izin flash. Penulisan EDL tidak termasuk P0; kelak hanya boleh lewat alur khusus perangkat/SoC dengan paket dan programmer terverifikasi serta otorisasi vendor yang sah. Jangan memberi instruksi pin test point generik.
-7. **Tidak ada bypass.** Unlock timer, Mi Account, Find Device, activation lock, ARB, EDL authorization, atau kontrol keamanan OEM tidak boleh diakali.
+7. **Tidak ada bypass.** Unlock timer, akun OEM, Find Device, activation lock, ARB, EDL authorization, atau kontrol keamanan OEM tidak boleh diakali.
 8. **Privasi dan audit lokal.** Arsipkan manifest, hash, metadata, keputusan gate, log, dan hasil pascarepair dengan IMEI/serial/account identifier dimasking; jangan menyimpan identifier mentah sebagai provenance.
 
-## Urutan prioritas dan status fase
+## 5. Urutan prioritas
 
-| Fase | Status | Prioritas | Prasyarat keluar |
-|---|---|---:|---|
-| 0. Matriks dukungan dan safety | Wajib sebelum semua fase | P0 | Kontrak safety, matriks model/region/firmware, audit log, dan stop condition aktif |
-| 1. Diagnostik Xiaomi | Implementasi awal | P0 | Probe read-only stabil dan identitas dapat ditampilkan |
-| 2. Autentisitas/forensik read-only | Implementasi awal | P0 | Provenance berlapis dan katalog/hash tersedia |
-| 3. Servis non-destruktif | Terbatas | P1 | Fase 0–2 lulus; pemulihan resmi tidak menulis partisi berisiko |
-| 4. Restore ROM resmi Xiaomi | Terbatas/terverifikasi | P1 | Paket dan target cocok eksplisit; backup dan rencana pemulihan tersedia |
-| 5. Unlock bootloader | Eksperimental, opt-in | P2 | Konfirmasi wipe, backup teruji, binding/eligibility resmi, dan uji non-produksi |
-| 6. Custom recovery/ROM | Ditunda | P3 | Kontrak per-model; tidak boleh menjadi jalur pemulihan umum |
-| 7. Relock bootloader | Ditunda paling ketat | P3 | Bukti kecocokan stock lengkap dan boot pascarestore berhasil; default tetap berhenti |
-| 8. Perluasan merek | Ditunda | P4 | Policy adapter dan matriks bukti per OEM; tidak memakai asumsi Xiaomi |
+| Fase | Fokus | Status | Prioritas | Prasyarat keluar |
+|---|---|---|---:|---|
+| 0 | Matriks dukungan lintas merek dan safety | Fondasi belum lengkap | P0 | Katalog bukti, stop condition, dan gate aktif sebelum operasi berisiko |
+| 1 | Diagnostik Android umum + adapter keluarga merek awal (termasuk Xiaomi) | Sebagian tersedia; perlu validasi per perangkat | P0 | Probe baca-saja stabil; identitas dan tingkat validasi ditampilkan jujur |
+| 2 | Autentisitas/forensik read-only | Sebagian tersedia; katalog/provenance belum lengkap | P0 | Provenance berlapis dan katalog/hash tepercaya tersedia |
+| 3 | Servis non-destruktif | Direncanakan | P1 | Fase 0–2 lulus; tindakan aman dan pembatalan jelas |
+| 4 | Restore ROM resmi per model dan OEM | Belum tersedia; hanya kandidat terverifikasi di masa depan | P1 | Paket, target, metode OEM, backup, dan rencana pemulihan cocok eksplisit |
+| 5 | Unlock bootloader per OEM | Ditunda; opt-in bila dikembangkan | P2 | Konfirmasi wipe, backup teruji, alur resmi OEM, dan uji non-produksi |
+| 6 | Custom recovery/ROM | Ditunda | P3 | Kontrak keselamatan khusus perangkat; bukan jalur pemulihan umum |
+| 7 | Relock bootloader | Ditunda paling ketat | P3 | Bukti kecocokan stock lengkap dan boot pascarestore berhasil; default tetap berhenti |
+| 8 | Perluasan ke keluarga merek di luar gelombang awal | Direncanakan setelah fondasi | P4 | Adapter terisolasi dan matriks bukti tersendiri; tidak mewarisi asumsi OEM lain |
 
 ---
 
 ## Fase 0 — Matriks dukungan dan safety
 
 ### Tujuan
-Membangun batas dukungan yang dapat diaudit sebelum DroidNow menyentuh perangkat atau firmware.
+Membangun batas dukungan lintas merek yang dapat diaudit sebelum DroidNow menyentuh perangkat atau firmware.
 
 ### Pekerjaan
 
-- Definisikan matriks per **model, SKU, codename, hardware/region, varian, era firmware, Android, MIUI/HyperOS, mode bootloader/fastbootd, slot, AVB, dan ARB**.
-- Susun matriks untuk seluruh model Xiaomi dan mulai validasi terbatas pada Redmi 4A `rolex`; model ini contoh awal, bukan batas produk. Klaim komunitas bahwa rolex tidak memiliki ARB hanya hipotesis read-only, bukan jaminan [2].
+- Definisikan matriks per **OEM/keluarga merek, model, SKU, codename, SoC, hardware/region, varian, era firmware, Android, MIUI/HyperOS bila relevan, mode bootloader/fastbootd, slot, AVB, dan ARB**.
+- Catat keluarga merek gelombang awal dan urutannya. Xiaomi adalah salah satunya; jangan menyiratkan seluruh produk hanya untuk Xiaomi. Mulai riset perangkat dengan Redmi 4A `rolex` sebagai satu contoh saja, bukan batas produk. Klaim komunitas bahwa rolex tidak memiliki ARB hanya hipotesis read-only, bukan jaminan [2].
 - Bangun katalog firmware dengan tipe paket, build, region, ukuran, SHA-256, URL sumber, tanggal, metadata rollback, status verifikasi, dan provenance.
 - Tetapkan stop condition: identitas konflik/tidak terbaca, paket tidak cocok, hash gagal, rollback tidak dapat dinilai, toolchain tidak stabil, interupsi, atau recovery memerlukan bypass.
 - Rancang schema arsip kasus: perangkat, operasi, bukti, keputusan gate, error, hasil, dan identifier yang dimasking.
@@ -48,25 +78,25 @@ Membangun batas dukungan yang dapat diaudit sebelum DroidNow menyentuh perangkat
 ### Keluaran
 
 - Matriks dukungan versioned.
-- Policy adapter Xiaomi dan daftar codename/region yang benar-benar didukung.
+- Daftar adapter keluarga merek gelombang awal dan policy per OEM; daftar codename/region hanya untuk model yang buktinya benar-benar tersedia.
 - Katalog firmware terverifikasi.
 - State machine safety gate dan daftar stop condition.
 - Format arsip/log bermasking serta threat model.
 
 ### Kontrol risiko
 
-Tujuan cakupannya seluruh model Xiaomi, tetapi itu bukan klaim bahwa firmware atau pemulihan bersifat universal: setiap model/SKU/SoC/region tetap perlu bukti tersendiri. Xiaomi menyatakan ketersediaan update bersifat spesifik model dan region [15], dan jadwal resminya mencantumkan lini Xiaomi, REDMI, serta POCO dengan waktu ketersediaan yang dapat bervariasi [16]. Tolak label region saja sebagai dasar kecocokan. Xiaomi tidak menerbitkan matriks publik bahwa semua paket/region aman untuk semua hardware [3].
+Cakupan produk adalah Android lintas merek; Xiaomi hanya salah satu keluarga dalam gelombang awal. Itu bukan klaim bahwa semua model Xiaomi atau keluarga lain telah divalidasi. Setiap model/SKU/SoC/region tetap perlu bukti tersendiri. Xiaomi menyatakan ketersediaan update bersifat spesifik model dan region [15], dan jadwal resminya mencantumkan lini Xiaomi, REDMI, serta POCO dengan waktu ketersediaan yang dapat bervariasi [16]. Tolak label region saja sebagai dasar kecocokan. Xiaomi tidak menerbitkan matriks publik bahwa semua paket/region aman untuk semua hardware [3].
 
 ---
 
-## Fase 1 — Diagnostik Xiaomi
+## Fase 1 — Diagnostik Android umum dan adapter keluarga merek awal
 
 ### Tujuan
-Mendapatkan gambaran perangkat secara read-only dan menyediakan wizard gejala.
+Mendapatkan gambaran perangkat Android secara read-only melalui lapisan umum, lalu menambahkan interpretasi spesifik OEM hanya melalui adapter yang buktinya tersedia. Xiaomi termasuk keluarga awal; pemeriksaan Redmi 4A tetap satu contoh, bukan cakupan eksklusif.
 
 ### Pekerjaan
 
-- Probe berulang untuk model/SKU/codename, region/variant, build/version, Android, bootloader state, Verified Boot state, mode, slot, daftar partisi, dan `fastboot getvar anti` bila tersedia.
+- Probe berulang untuk model/SKU/codename, region/variant, build/version, Android, bootloader state, Verified Boot state, mode, slot, daftar partisi, dan properti vendor yang memang didukung; `fastboot getvar anti` hanya diperlakukan sebagai bukti jika benar-benar tersedia.
 - Catat versi `adb`/`fastboot`, driver, koneksi, kabel/port, serta hasil handshake tanpa menulis.
 - Tampilkan ketidakpastian setiap field; hasil kosong dari `getvar anti` berarti **tidak terdeteksi**, bukan `ARB aman`.
 - Wizard gejala:
@@ -143,10 +173,10 @@ Bootloader terkunci dapat membuat reflashing melalui Fastboot tidak tersedia; op
 
 ---
 
-## Fase 4 — Restore ROM resmi Xiaomi
+## Fase 4 — Restore ROM resmi per model dan OEM
 
 ### Tujuan
-Memulihkan ROM resmi hanya pada pasangan target yang terverifikasi.
+Memulihkan firmware resmi hanya pada pasangan perangkat-paket-metode OEM yang terverifikasi. Riset Xiaomi pada roadmap ini adalah satu studi keluarga merek, bukan aturan yang dapat diterapkan ke OEM lain.
 
 ### Prasyarat wajib
 
@@ -160,7 +190,7 @@ Memulihkan ROM resmi hanya pada pasangan target yang terverifikasi.
 
 - Tampilkan diff perangkat-versus-paket sebelum write.
 - Minta konfirmasi eksplisit untuk wipe/data loss dan risiko interupsi.
-- Gunakan hanya metode OEM yang didukung untuk firmware tepat yang sudah diverifikasi, setelah prasyarat status bootloader terpenuhi melalui alur resmi; tanpa retry otomatis setelah timeout.
+- Gunakan hanya metode OEM yang didukung untuk firmware tepat yang sudah diverifikasi, setelah prasyarat status bootloader terpenuhi melalui alur resmi OEM yang sesuai; tanpa retry otomatis setelah timeout.
 - Setelah selesai, verifikasi model/codename/region/build, AVB/bootloader, slot, kemampuan boot normal, beberapa reboot, storage/radio health, dan hash/log.
 - **Jangan relock otomatis pada fase ini.**
 
@@ -176,7 +206,7 @@ Rollback image lebih rendah dapat ditolak bootloader resmi; jalur pihak ketiga y
 
 ---
 
-## Fase 5 — Unlock bootloader
+## Fase 5 — Unlock bootloader per OEM
 
 ### Status
 **Eksperimental, opt-in, bukan jalur pemulihan data; belum diimplementasikan. P0 tetap baca-saja.**
@@ -186,7 +216,7 @@ Rollback image lebih rendah dapat ditolak bootloader resmi; jalur pihak ketiga y
 - Perangkat non-produksi atau data memang boleh hilang.
 - Backup sah telah diuji dengan manifest/checksum; DroidNow tidak menjanjikan pemulihan data terenkripsi/lockscreen.
 - Konfirmasi eksplisit bahwa unlock menghapus data; tidak ada default tersembunyi.
-- Gunakan alur UBL resmi Xiaomi saat ini: masuk dengan Mi Account sendiri, lakukan pairing/binding akun dan perangkat melalui mekanisme resmi, lalu penuhi eligibility, ketentuan SIM/network/region, serta masa tunggu yang ditampilkan untuk perangkat itu. Timer, akun, pairing, atau otorisasi tidak boleh diakali.
+- Untuk perangkat Xiaomi, gunakan alur UBL resmi Xiaomi yang berlaku: masuk dengan Mi Account sendiri, lakukan pairing/binding akun dan perangkat melalui mekanisme resmi, lalu penuhi eligibility, ketentuan SIM/network/region, serta masa tunggu yang ditampilkan untuk perangkat itu. Alur ini tidak boleh diasumsikan berlaku bagi OEM lain. Timer, akun, pairing, atau otorisasi tidak boleh diakali.
 - Model/codename/region/version/hash dan status bootloader cocok.
 
 ### Pekerjaan dan keluaran
@@ -257,21 +287,21 @@ Xiaomi memperingatkan firmware tidak didukung dapat menyebabkan gagal boot dan m
 
 ---
 
-## Fase 8 — Perluas merek
+## Fase 8 — Perluas dukungan keluarga merek
 
 ### Status
-**Ditunda sampai ada bukti dan policy adapter terpisah.**
+**Untuk keluarga di luar gelombang awal; ditunda sampai ada prioritas, bukti, dan policy adapter terpisah.**
 
 ### Prasyarat
 
 - Matriks resmi/terverifikasi per OEM: boot chain, rollback, bootloader, firmware provenance, relock, recovery, akun, dan servis.
-- Implementasi adapter terisolasi; tidak mewarisi asumsi Xiaomi, AVB, EDL, ARB, atau kebijakan wipe.
+- Implementasi adapter terisolasi; tidak mewarisi asumsi Xiaomi maupun asumsi OEM lain tentang AVB, EDL, ARB, atau kebijakan wipe.
 - Uji read-only, katalog artefak, gate, interupsi, dan pascarepair pada setiap model sebelum write.
 - Review keamanan dan incident rollback sebelum rilis.
 
 ### Keluaran dan kontrol risiko
 
-Keluaran pertama hanya diagnostik/read-only per merek. Tidak ada klaim lintas-merek aman sampai ada bukti model-spesifik dan sumber terverifikasi.
+Keluaran awal untuk setiap keluarga baru adalah diagnostik/read-only. Tidak ada klaim lintas-merek aman sampai ada bukti model-spesifik dan sumber terverifikasi.
 
 ---
 
@@ -288,15 +318,15 @@ Status akhir harus salah satu dari: **pulih dan terverifikasi**, **pulih tetapi 
 3. **P1 terbatas:** Fase 4: restore resmi hanya untuk paket/codename/region yang terverifikasi; retry manual berbasis bukti.
 4. **P2:** Fase 5 hanya opt-in dengan wipe confirmation, binding resmi, backup teruji, dan perangkat non-produksi.
 5. **P3:** Fase 6–7 tetap ditunda; relock paling ketat dan fail-closed.
-6. **P4:** Fase 8 hanya setelah policy adapter OEM dan bukti per-model tersedia.
+6. **P4:** Fase 8 hanya untuk keluarga merek di luar gelombang awal, setelah prioritas adapter OEM dan bukti per-model tersedia.
 
 ## Gap dan ketidakpastian yang harus tetap terlihat
 
 - Tidak ada dokumentasi Xiaomi publik lengkap yang memetakan ARB, AVB, cust, region, relock, dan EDL untuk semua model/region/era.
-- Tidak ada artefak firmware `rolex` yang diverifikasi dalam riset ini; status ARB/AVB/provenance rolex tetap dapat `indeterminate`.
+- Tidak ada artefak firmware `rolex` yang diverifikasi dalam riset ini; Redmi 4A adalah satu contoh riset, dan status ARB/AVB/provenance-nya tetap dapat `indeterminate`.
 - Perilaku modern HyperOS, multi-lokasi rollback index, dan jalur EDL dapat berbeda menurut SoC, bootloader, region, dan paket.
 - Sumber XDA/Reddit adalah laporan komunitas atau self-report: berguna untuk threat model, bukan frekuensi atau jaminan kausal universal.
-- Batas baterai konservatif, probabilitas brick, dan matriks error khusus Redmi 4A belum ditetapkan oleh sumber yang digunakan.
+- Batas baterai konservatif, probabilitas brick, dan matriks error khusus perangkat belum ditetapkan oleh sumber yang digunakan; kekosongan ini tidak terbatas pada Redmi 4A.
 - Kebijakan Mi Account, masa tunggu, eligibility, dan wipe dapat berubah menurut waktu, akun, region, dan model.
 
 ## Referensi

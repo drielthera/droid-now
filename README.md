@@ -1,12 +1,12 @@
 # DroidNow
 
-DroidNow adalah aplikasi desktop Rust dengan antarmuka egui/eframe untuk memeriksa perangkat Android melalui ADB dan Fastboot. Tujuan produk adalah diagnostik lintas seluruh model Xiaomi. Validasi awal baru mencakup Redmi 4A (`rolex`); model, SoC, dan region lain perlu divalidasi tersendiri sebelum dukungan firmware atau pemulihan dapat diklaim.
+DroidNow adalah aplikasi desktop Rust dengan antarmuka egui/eframe untuk memeriksa perangkat Android melalui ADB dan Fastboot. Tujuan jangka panjangnya adalah diagnostik dan pemulihan Android lintas merek. Xiaomi merupakan salah satu keluarga merek dalam dukungan awal multi-merek. Redmi 4A (`rolex`) hanya satu contoh perangkat untuk riset/validasi awal, bukan sasaran produk atau satu-satunya perangkat/brand; model, SoC, dan region tetap perlu divalidasi tersendiri sebelum dukungan firmware atau pemulihan dapat diklaim.
 
 ## Cakupan pemeriksaan
 
 DroidNow membaca informasi yang tersedia dari perangkat dan dapat memeriksa berkas lokal. Aplikasi tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi. Perintah mulai ulang yang sudah tersedia selalu meminta konfirmasi.
 
-Perangkat Xiaomi lain dan Android lain dapat muncul dalam pemindaian generik, tetapi itu bukan bukti bahwa model atau firmware-nya telah divalidasi. Xiaomi sendiri menyatakan ketersediaan update bergantung pada model dan region ([FAQ model/region](https://www.mi.com/global/support/faq/details/KA-483292/); [jadwal HyperOS](https://www.mi.com/global/hyperos)). Nilai yang kosong atau gagal dibaca tetap dianggap belum diketahui; `getvar anti` yang kosong bukan bukti perangkat bebas anti-rollback.
+Perangkat Android dari berbagai merek dapat muncul dalam pemindaian generik, tetapi deteksi bukan bukti bahwa merek, model, atau firmware-nya telah divalidasi. Xiaomi sendiri menyatakan ketersediaan update bergantung pada model dan region ([FAQ model/region](https://www.mi.com/global/support/faq/details/KA-483292/); [jadwal HyperOS](https://www.mi.com/global/hyperos)). Nilai yang kosong atau gagal dibaca tetap dianggap belum diketahui; `getvar anti` yang kosong bukan bukti perangkat bebas anti-rollback.
 
 Petunjuk mode USB hanya berasal dari VID:PID yang teramati saat enumerasi. Petunjuk tersebut tidak memverifikasi protokol, identitas, otorisasi, kecocokan firmware, atau dukungan flashing. Lihat [batas dan pemetaan deteksi USB](USB_MODE_DETECTION.md).
 
@@ -49,7 +49,7 @@ cargo audit
 - `cargo audit` tidak menemukan kerentanan yang diketahui, tetapi memberi 4 peringatan dependency tidak terawat tanpa pembaruan perbaikan yang tersedia: `ttf-parser`, `zbus_names`, `zvariant`, dan `zvariant_derive`.
 - Deteksi USB belum diuji dengan perangkat fisik; sesi ini tidak menyediakan enumerasi USB. Perangkat Android fisik dan driver/USB Windows 11 juga belum diuji. macOS belum dibangun atau diuji.
 - Build Windows tidak dibuat.
-- Kecocokan dan keamanan firmware Redmi 4A belum dapat diverifikasi. Hasil pemeriksaan bukan jaminan firmware aman atau cocok.
+- Redmi 4A (`rolex`) adalah satu contoh perangkat dalam keluarga Xiaomi; kecocokan dan keamanan firmware untuk contoh ini belum dapat diverifikasi. Hasil pemeriksaan bukan jaminan firmware aman atau cocok, dan temuan perangkat ini tidak menetapkan cakupan seluruh produk.
 
 ## Berkas utama
 
