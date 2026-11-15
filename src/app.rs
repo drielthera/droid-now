@@ -7,23 +7,20 @@ use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-const BG: Color32 = Color32::from_rgb(20, 23, 27);
-const PANEL: Color32 = Color32::from_rgb(29, 32, 38);
-const PANEL_DARK: Color32 = Color32::from_rgb(23, 26, 32);
-const LINE: Color32 = Color32::from_rgb(48, 53, 61);
-const TEXT: Color32 = Color32::from_rgb(232, 234, 239);
-const MUTED: Color32 = Color32::from_rgb(160, 166, 176);
-const GREEN: Color32 = Color32::from_rgb(73, 201, 177);
+const BG: Color32 = Color32::from_rgb(10, 11, 13);
+const PANEL: Color32 = Color32::from_rgb(25, 27, 30);
+const PANEL_DARK: Color32 = Color32::from_rgb(19, 22, 25);
+const LINE: Color32 = Color32::from_rgb(48, 52, 58);
+const TEXT: Color32 = Color32::from_rgb(240, 240, 241);
+const MUTED: Color32 = Color32::from_rgb(188, 189, 194);
+const TEAL: Color32 = Color32::from_rgb(73, 201, 177);
+const VIOLET: Color32 = Color32::from_rgb(131, 105, 132);
 const AMBER: Color32 = Color32::from_rgb(225, 187, 112);
 const RED: Color32 = Color32::from_rgb(235, 127, 136);
-const CONTROL_EDGE: Color32 = Color32::from_rgb(120, 132, 148);
+const CONTROL_EDGE: Color32 = Color32::from_rgb(83, 88, 94);
 
 #[derive(Clone, Copy)]
 enum Icon {
-    Home,
-    Activity,
-    About,
-    Help,
     Scan,
     Device,
     Shield,
@@ -52,44 +49,10 @@ fn paint_icon(painter: &egui::Painter, kind: Icon, rect: egui::Rect, color: Colo
     let closed = |points: Vec<egui::Pos2>| painter.add(egui::Shape::closed_line(points, stroke));
 
     match kind {
-        Icon::Home => {
-            line(point(0.12, 0.48), point(0.50, 0.16));
-            line(point(0.50, 0.16), point(0.88, 0.48));
-            line(point(0.24, 0.43), point(0.24, 0.84));
-            line(point(0.76, 0.43), point(0.76, 0.84));
-            line(point(0.24, 0.84), point(0.76, 0.84));
-            line(point(0.44, 0.84), point(0.44, 0.61));
-            line(point(0.56, 0.84), point(0.56, 0.61));
-            line(point(0.44, 0.61), point(0.56, 0.61));
-        }
-        Icon::Activity => {
-            closed(vec![
-                point(0.25, 0.12),
-                point(0.68, 0.12),
-                point(0.82, 0.26),
-                point(0.82, 0.88),
-                point(0.25, 0.88),
-            ]);
-            line(point(0.68, 0.12), point(0.68, 0.27));
-            line(point(0.68, 0.27), point(0.82, 0.27));
-            line(point(0.36, 0.45), point(0.70, 0.45));
-            line(point(0.36, 0.61), point(0.70, 0.61));
-            line(point(0.36, 0.77), point(0.62, 0.77));
-        }
-        Icon::About | Icon::Info => {
+        Icon::Info => {
             painter.circle_stroke(point(0.50, 0.50), unit * 0.39, stroke);
             painter.circle_filled(point(0.50, 0.34), stroke.width * 0.72, color);
             line(point(0.50, 0.47), point(0.50, 0.69));
-        }
-        Icon::Help => {
-            painter.circle_stroke(point(0.50, 0.50), unit * 0.39, stroke);
-            painter.text(
-                point(0.50, 0.50),
-                Align2::CENTER_CENTER,
-                "?",
-                FontId::proportional(unit * 0.60),
-                color,
-            );
         }
         Icon::Scan => {
             painter.circle_stroke(point(0.42, 0.42), unit * 0.25, stroke);
@@ -168,7 +131,7 @@ fn draw_icon_button(
         .min_size(egui::vec2(width, height))
         .corner_radius(egui::CornerRadius::same(5));
     if primary {
-        button = button.fill(GREEN);
+        button = button.fill(TEAL);
     } else if !enabled {
         button = button.fill(PANEL_DARK);
     }
@@ -552,12 +515,12 @@ impl DroidNowApp {
         egui::TopBottomPanel::top("header")
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(22, 25, 30))
+                    .fill(PANEL_DARK)
                     .inner_margin(egui::Margin::symmetric(22, 13)),
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    draw_icon(ui, Icon::Device, 29.0, GREEN);
+                    draw_icon(ui, Icon::Device, 29.0, TEAL);
                     ui.vertical(|ui| {
                         ui.label(RichText::new("DroidNow").size(21.0).strong().color(TEXT));
                         ui.label(
@@ -599,53 +562,39 @@ impl DroidNowApp {
     }
 
     fn draw_navigation(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("navigation")
-            .exact_width(188.0)
-            .resizable(false)
+        egui::TopBottomPanel::top("navigation")
+            .exact_height(42.0)
             .frame(
                 egui::Frame::new()
                     .fill(PANEL_DARK)
-                    .inner_margin(egui::Margin::symmetric(12, 14)),
+                    .inner_margin(egui::Margin::symmetric(22, 4)),
             )
             .show(ctx, |ui| {
-                for (page, label, icon_kind) in [
-                    (Page::Home, i18n::tr(self.locale, "Ringkasan"), Icon::Home),
-                    (
-                        Page::Log,
-                        i18n::tr(self.locale, "Aktivitas"),
-                        Icon::Activity,
-                    ),
-                    (Page::About, i18n::tr(self.locale, "Tentang"), Icon::About),
-                    (Page::Help, i18n::tr(self.locale, "Panduan"), Icon::Help),
-                ] {
-                    let selected = self.page == page;
-                    let width = ui.available_width();
-                    let response = ui.add_sized(
-                        [width, 40.0],
-                        egui::Button::selectable(
-                            selected,
-                            RichText::new(label).size(12.0).color(if selected {
-                                TEXT
-                            } else {
-                                MUTED
-                            }),
-                        )
-                        .corner_radius(egui::CornerRadius::same(5)),
-                    );
-                    paint_icon(
-                        ui.painter(),
-                        icon_kind,
-                        egui::Rect::from_center_size(
-                            egui::pos2(response.rect.left() + 38.0, response.rect.center().y),
-                            egui::vec2(18.0, 18.0),
-                        ),
-                        if selected { GREEN } else { MUTED },
-                    );
-                    if response.clicked() {
-                        self.page = page;
+                ui.horizontal(|ui| {
+                    for (page, label) in [
+                        (Page::Home, i18n::tr(self.locale, "Perangkat")),
+                        (Page::Log, i18n::tr(self.locale, "Aktivitas")),
+                        (Page::Help, i18n::tr(self.locale, "Panduan")),
+                        (Page::About, i18n::tr(self.locale, "Tentang")),
+                    ] {
+                        let selected = self.page == page;
+                        let response = ui.add_sized(
+                            [92.0, 31.0],
+                            egui::Button::selectable(
+                                selected,
+                                RichText::new(label).size(11.0).color(if selected {
+                                    TEXT
+                                } else {
+                                    MUTED
+                                }),
+                            )
+                            .corner_radius(egui::CornerRadius::same(4)),
+                        );
+                        if response.clicked() {
+                            self.page = page;
+                        }
                     }
-                    ui.add_space(5.0);
-                }
+                });
             });
     }
 
@@ -680,13 +629,13 @@ impl DroidNowApp {
                 AMBER,
             ),
             Some(device) if device.mode == "fastboot" => {
-                (i18n::tr(self.locale, "Fastboot terhubung"), "", GREEN)
+                (i18n::tr(self.locale, "Fastboot terhubung"), "", TEAL)
             }
-            Some(_) => (i18n::tr(self.locale, "Perangkat terhubung"), "", GREEN),
+            Some(_) => (i18n::tr(self.locale, "Perangkat terhubung"), "", TEAL),
         };
         let available_width = ui.available_width();
         egui::Frame::new()
-            .fill(Color32::from_rgb(32, 35, 42))
+            .fill(PANEL)
             .stroke(Stroke::new(1.0_f32, LINE))
             .inner_margin(egui::Margin::symmetric(14, 11))
             .show(ui, |ui| {
@@ -865,30 +814,15 @@ impl DroidNowApp {
                 .selected_device()
                 .map(|device| format!("{} · {}", device.mode.to_uppercase(), device.state))
                 .unwrap_or_else(|| missing_value.into());
-            ui.columns(2, |columns| {
+            ui.columns(3, |columns| {
                 kv_row(&mut columns[0], i18n::tr(self.locale, "Model"), &model);
                 kv_row(
-                    &mut columns[0],
-                    i18n::tr(self.locale, "Kode perangkat"),
-                    &codename,
-                );
-                kv_row(
-                    &mut columns[0],
+                    &mut columns[1],
                     i18n::tr(self.locale, "Versi Android"),
                     &android,
                 );
                 kv_row(
-                    &mut columns[1],
-                    i18n::tr(self.locale, "Status bootloader"),
-                    &bootloader,
-                );
-                kv_row(
-                    &mut columns[1],
-                    i18n::tr(self.locale, "Nomor seri"),
-                    &serial,
-                );
-                kv_row(
-                    &mut columns[1],
+                    &mut columns[2],
                     i18n::tr(self.locale, "Koneksi"),
                     &connection,
                 );
@@ -898,9 +832,26 @@ impl DroidNowApp {
                     .selected_device()
                     .is_some_and(|device| device.serial == *info_serial)
                 {
-                    egui::CollapsingHeader::new(i18n::tr(self.locale, "Detail teknis perangkat"))
+                    egui::CollapsingHeader::new(i18n::tr(self.locale, "Detail perangkat"))
                         .default_open(false)
                         .show(ui, |ui| {
+                            ui.columns(3, |columns| {
+                                kv_row(
+                                    &mut columns[0],
+                                    i18n::tr(self.locale, "Kode perangkat"),
+                                    &codename,
+                                );
+                                kv_row(
+                                    &mut columns[1],
+                                    i18n::tr(self.locale, "Status bootloader"),
+                                    &bootloader,
+                                );
+                                kv_row(
+                                    &mut columns[2],
+                                    i18n::tr(self.locale, "Nomor seri"),
+                                    &serial,
+                                );
+                            });
                             ui.label(RichText::new(i18n::tr(self.locale, "Nilai kosong atau gagal dibaca tidak membuktikan perangkat aman.")).size(9.0).color(AMBER));
                             for line in info.lines() {
                                 ui.label(RichText::new(i18n::translate_text(self.locale, line)).size(9.0).monospace().color(MUTED));
@@ -1344,7 +1295,7 @@ impl DroidNowApp {
                         .button(
                             RichText::new(i18n::tr(self.locale, "Mulai ulang sekarang"))
                                 .strong()
-                                .color(Color32::from_rgb(8, 31, 25)),
+                                .color(TEAL),
                         )
                         .clicked()
                     {
@@ -1372,7 +1323,7 @@ impl eframe::App for DroidNowApp {
         egui::TopBottomPanel::bottom("footer")
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(22, 25, 30))
+                    .fill(PANEL_DARK)
                     .inner_margin(egui::Margin::symmetric(20, 7)),
             )
             .show(ctx, |ui| {
@@ -1406,9 +1357,9 @@ impl eframe::App for DroidNowApp {
                             .size(9.0)
                             .color(MUTED),
                     );
-                    ui.label(RichText::new(app_status).size(9.0).strong().color(GREEN));
+                    ui.label(RichText::new(app_status).size(9.0).strong().color(TEAL));
                     if is_loading {
-                        ui.add(egui::Spinner::new().size(13.0).color(GREEN));
+                        ui.add(egui::Spinner::new().size(13.0).color(TEAL));
                     }
                 });
             });
@@ -1417,14 +1368,14 @@ impl eframe::App for DroidNowApp {
             .frame(
                 egui::Frame::new()
                     .fill(BG)
-                    .inner_margin(egui::Margin::symmetric(18, 18)),
+                    .inner_margin(egui::Margin::symmetric(64, 18)),
             )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     match self.page {
                         Page::Home => {
                             ui.horizontal(|ui| {
-                                ui.heading(RichText::new(i18n::tr(self.locale, "Perangkat dan koneksi")).size(24.0).strong().color(TEXT));
+                                ui.heading(RichText::new(i18n::tr(self.locale, "Perangkat")).size(24.0).strong().color(TEXT));
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let tools_ready = self.tool_status.adb_available && self.tool_status.fastboot_available;
                                     let text = if self.scanning {
@@ -1452,12 +1403,20 @@ impl eframe::App for DroidNowApp {
                                 ui.add_space(9.0);
                                 self.draw_device_card(ui, ctx);
                             }
-                            ui.add_space(9.0);
-                            self.draw_usb_mode_card(ui);
-                            ui.add_space(9.0);
-                            self.draw_actions(ui);
-                            ui.add_space(9.0);
-                            self.draw_rom_card(ui, ctx);
+                            ui.add_space(12.0);
+                            egui::CollapsingHeader::new(i18n::tr(
+                                self.locale,
+                            "Pemeriksaan lanjutan",
+                            ))
+                            .default_open(false)
+                            .show(ui, |ui| {
+                                ui.add_space(6.0);
+                                self.draw_usb_mode_card(ui);
+                                ui.add_space(8.0);
+                                self.draw_actions(ui);
+                                ui.add_space(8.0);
+                                self.draw_rom_card(ui, ctx);
+                            });
                         }
                         Page::Log => {
                             page_heading(ui, self.locale, i18n::tr(self.locale, "Riwayat aktivitas"), i18n::tr(self.locale, "Catatan sesi ini tersimpan di komputer dan tidak dikirim secara otomatis."));
@@ -1477,7 +1436,7 @@ impl eframe::App for DroidNowApp {
                                 } else {
                                     egui::ScrollArea::vertical().max_height(620.0).show(ui, |ui| {
                                         for (index, entry) in self.log.iter().enumerate().rev() {
-                                            let color = if entry.contains("gagal") || entry.contains("tidak ditemukan") { RED } else if entry.contains("berhasil") || entry.contains("Ditemukan") { GREEN } else { MUTED };
+                                            let color = if entry.contains("gagal") || entry.contains("tidak ditemukan") { RED } else if entry.contains("berhasil") || entry.contains("Ditemukan") { TEAL } else { MUTED };
                                             ui.horizontal_top(|ui| {
                                                 ui.label(RichText::new(format!("{:03}", index + 1)).size(9.0).monospace().color(MUTED));
                                                 ui.label(RichText::new(i18n::translate_text(self.locale, entry)).size(10.0).color(color));
@@ -1504,9 +1463,8 @@ impl eframe::App for DroidNowApp {
                             page_heading(ui, self.locale, i18n::tr(self.locale, "Panduan singkat"), "");
                             ui.add_space(10.0);
                             card(ui, |ui| {
-                                help_step(ui, "1", i18n::tr(self.locale, "Siapkan tools"), i18n::tr(self.locale, "Pilih folder Platform-Tools, atau siapkan tools resmi dari Google."));
-                                help_step(ui, "2", i18n::tr(self.locale, "Hubungkan perangkat"), i18n::tr(self.locale, "ADB: aktifkan USB debugging dan setujui akses. Fastboot: masuk sesuai petunjuk perangkat."));
-                                help_step(ui, "3", i18n::tr(self.locale, "Tinjau hasil"), i18n::tr(self.locale, "Pindai koneksi. DroidNow hanya membaca perangkat."));
+                                help_step(ui, "1", i18n::tr(self.locale, "Siapkan tools"), i18n::tr(self.locale, "Pilih folder tools atau gunakan tombol Siapkan."));
+                                help_step(ui, "2", i18n::tr(self.locale, "Sambungkan dan pindai"), i18n::tr(self.locale, "Hubungkan USB. Setujui USB debugging bila diminta."));
                             });
                             egui::CollapsingHeader::new(i18n::tr(self.locale, "Lokasi tools"))
                                 .default_open(false)
@@ -1521,8 +1479,10 @@ impl eframe::App for DroidNowApp {
                                         .color(MUTED),
                                     );
                                 });
-                            ui.add_space(9.0);
-                            card(ui, |ui| {
+                            egui::CollapsingHeader::new(i18n::tr(self.locale, "Batas operasi"))
+                                .default_open(false)
+                                .show(ui, |ui| {
+                                    card(ui, |ui| {
                                     ui.horizontal(|ui| {
                                         draw_icon(ui, Icon::Shield, 17.0, AMBER);
                                         ui.label(RichText::new(i18n::tr(self.locale, "Batas operasi")).size(13.0).strong().color(AMBER));
@@ -1537,7 +1497,8 @@ impl eframe::App for DroidNowApp {
                                             self.show_driver_dialog = true;
                                         }
                                     }
-                            });
+                                    });
+                                });
                         }
                     }
                 });
@@ -1587,7 +1548,7 @@ fn help_step(ui: &mut egui::Ui, number: &str, title: &str, description: &str) {
                 .size(10.0)
                 .monospace()
                 .strong()
-                .color(GREEN),
+                .color(TEAL),
         );
         ui.vertical(|ui| {
             ui.label(RichText::new(title).size(10.0).strong().color(TEXT));
@@ -1602,18 +1563,18 @@ fn apply_visuals(ctx: &egui::Context) {
     visuals.panel_fill = BG;
     visuals.window_fill = PANEL;
     visuals.extreme_bg_color = PANEL_DARK;
-    visuals.faint_bg_color = Color32::from_rgb(22, 32, 44);
-    visuals.selection.bg_fill = Color32::from_rgb(37, 89, 75);
-    visuals.selection.stroke = Stroke::new(1.0_f32, GREEN);
+    visuals.faint_bg_color = Color32::from_rgb(22, 25, 30);
+    visuals.selection.bg_fill = Color32::from_rgb(51, 42, 56);
+    visuals.selection.stroke = Stroke::new(1.0_f32, VIOLET);
     visuals.widgets.noninteractive.bg_fill = PANEL;
     visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, TEXT);
-    visuals.widgets.inactive.bg_fill = Color32::from_rgb(34, 38, 45);
+    visuals.widgets.inactive.bg_fill = PANEL_DARK;
     visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
     visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, TEXT);
-    visuals.widgets.hovered.bg_fill = Color32::from_rgb(49, 55, 64);
+    visuals.widgets.hovered.bg_fill = Color32::from_rgb(45, 53, 57);
     visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
-    visuals.widgets.active.bg_fill = Color32::from_rgb(42, 91, 81);
-    visuals.widgets.open.bg_fill = Color32::from_rgb(38, 44, 52);
+    visuals.widgets.active.bg_fill = Color32::from_rgb(36, 68, 64);
+    visuals.widgets.open.bg_fill = Color32::from_rgb(34, 36, 42);
     visuals.widgets.open.bg_stroke = Stroke::new(1.0_f32, CONTROL_EDGE);
     visuals.window_stroke = Stroke::new(1.0_f32, LINE);
     ctx.set_visuals(visuals);

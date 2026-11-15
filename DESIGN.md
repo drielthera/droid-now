@@ -1,38 +1,17 @@
 # Arah desain DroidNow
 
-Pembacaan desain: aplikasi desktop diagnostik Android untuk pengguna dan teknisi, dengan visual utilitarian grafit dan aksen teal yang tenang, dial ENERGY 2 / RHYTHM 2 / MOTION 1.
+Produk desktop untuk diagnosis perangkat, dengan workspace status-kontrol ringkas. ENERGY 2 / RHYTHM 2 / MOTION 1. Dasar charcoal, teks cool-white, teal sebagai aksen DroidNow, dan muted violet hanya sebagai penanda pilihan sekunder.
 
 ## Identitas
+DroidNow membantu memeriksa koneksi ADB/Fastboot, membaca informasi dasar perangkat, dan meninjau berkas lokal. Nama dan tagline DroidNow menjadi identitas aplikasi. Nada antarmuka profesional, jelas, dan langsung.
 
-DroidNow membantu memeriksa koneksi ADB/Fastboot, membaca informasi dasar perangkat, dan meninjau berkas lokal. Tujuan produk adalah diagnostik lintas seluruh model Xiaomi; deteksi koneksi Android tetap generik. Validasi awal baru mencakup Xiaomi Redmi 4A (`rolex`), sementara firmware dan pemulihan perlu diuji per model, SoC, dan region. UI harus memperlihatkan perbedaan antara tujuan luas dan cakupan yang benar-benar tervalidasi.
-
-Nada antarmuka profesional, langsung, dan mudah dipahami. Jelaskan tindakan serta batasnya dengan kata-kata sehari-hari. Hindari jargon milestone, promosi, klaim tanpa bukti, dan istilah yang menyiratkan dukungan model lebih luas daripada yang telah divalidasi.
+## Komposisi
+Layar Perangkat mengutamakan status koneksi dan satu tindakan utama. Saat data tersedia, Model, versi Android, dan koneksi menjadi metrik ringkas. Serial, kode perangkat, bootloader, serta hasil probe berada di rincian. Aktivitas, Panduan, dan Tentang tetap menjadi tujuan sekunder yang nyata. USB baca-saja, reboot, dan pemeriksaan ROM lokal berada di Pemeriksaan lanjutan.
 
 ## Bahasa visual
+Charcoal `#0A0B0D` menjadi dasar, permukaan menggunakan abu gelap, teks utama `#F0F0F1`, teks sekunder `#BCBDC2`, dan garis `#53585E`. Teal `#49C9B1` mempertahankan identitas DroidNow dan menandai aksi utama. Muted violet `#836984` hanya memberi nuansa pada navigasi terpilih; tidak dipakai sebagai status atau tombol utama. Hijau, amber, dan merah hanya membawa makna status. Permukaan datar, radius kecil, tanpa glow atau kartu dekoratif. Sans bawaan menjaga keterbacaan; monospace hanya untuk nilai teknis. Gerak terbatas pada umpan balik kontrol.
 
-- Dasar grafit gelap mengikuti referensi UI yang diberikan dan menjaga antarmuka utilitas desktop tetap fokus.
-- Teal menandai tindakan utama dan status siap. Amber menyampaikan peringatan yang perlu dibaca; merah menandai kegagalan. Warna status selalu disertai label teks.
-- Tipografi sans-serif bawaan menjaga keterbacaan tanpa dependensi font tambahan. Monospace hanya untuk nilai teknis seperti serial, hash, dan versi tool.
-- Panel utama mengutamakan pemindaian dan hasil perangkat. Kolom samping memuat kesiapan tools, batas keamanan, dan aktivitas. Urutan ini mengikuti tugas yang dilakukan pengguna, bukan template dashboard.
-- Ikon garis yang digambar aplikasi dipakai hanya untuk konsep yang relevan seperti perangkat, folder, pemindaian, informasi, dan keamanan.
-- Gerak dibatasi pada umpan balik interaksi seperti hover atau fokus. Tidak ada dekorasi bergerak.
+## Alasan keputusan
+[Acti – Wireless iPhone Microphone Dashboard](https://dribbble.com/shots/27883216-Acti-Wireless-iPhone-Microphone-Dashboard-UI) menjadi referensi untuk status perangkat yang ringkas, metrik relevan, dan satu area kontrol yang terorganisasi. DroidNow mengadaptasi bahasa visualnya ke jendela desktop, bukan ke tata letak ponsel, kontrol mikrofon, daftar sesi, atau data contoh. Struktur dan identitas tetap khusus DroidNow.
 
-## Keputusan desain
-
-- Aksen teal menarik perhatian ke pemindaian dan status koneksi yang siap, sehingga tindakan rutin mudah ditemukan.
-- Latar grafit dipertahankan karena sesuai dengan utilitas diagnostik dan referensi proyek, bukan sekadar karena tampil teknis.
-- Kolom samping merangkum prasyarat, keamanan, dan aktivitas tanpa menambah navigasi atau statistik yang tidak membantu pemeriksaan.
-- Tepi abu kebiruan pada kontrol idle, hover, dan terbuka memberi kontras minimal 3:1 terhadap permukaan dan fill tombol, tanpa memperluas penggunaan aksen teal.
-- Jarak rapat mengelompokkan label dan nilai di dalam kartu; sela yang lebih lebar memisahkan tugas agar layar cepat dipindai.
-- Panduan memakai tiga langkah karena alur nyata terdiri dari menyiapkan tools, menyambungkan perangkat, lalu meninjau hasil.
-- Ikon mulai ulang dipakai untuk ketiga tujuan boot karena semuanya mengirim perintah reboot; label tombol menyebut tujuan masing-masing.
-- Label model yang tervalidasi dipisahkan dari identitas umum Android agar cakupan produk tetap jujur.
-- Pemilih perangkat diberi label terlihat; saat popup tertutup, panah atas/bawah berpindah perangkat dan hanya memuat ulang informasi baca-saja.
-- Nilai yang belum dibaca, proses berjalan, dan kegagalan dibedakan dengan teks agar pengguna tidak perlu menafsirkan simbol atau warna saja.
-- Banner cakupan membungkus teks ketika kolom menyempit agar batas keselamatan tidak hilang dari tampilan.
-
-## Dial
-
-- ENERGY 2: tampilan tenang dengan satu tindakan utama yang jelas.
-- RHYTHM 2: struktur shell konsisten dengan variasi ukuran dan kepadatan sesuai peran tiap bagian.
-- MOTION 1: hanya umpan balik hover dan fokus, tanpa animasi dekoratif.
+Status harus berasal dari hasil nyata. Jangan menampilkan angka, perangkat, fitur, atau klaim dukungan rekaan. Mode USB tetap baca-saja. Pemeriksaan ROM tetap lokal dan tidak menjalankan atau mengirim berkas, serta tidak memberi izin menulis firmware. Setiap tujuan reboot tetap meminta konfirmasi. Jangan menambahkan flash, penulisan UBL/EDL, erase, format, relock, atau penulisan partisi.
