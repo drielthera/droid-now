@@ -1,4 +1,5 @@
 use crate::core::{self, Device, RomInspection, ScanResult, ToolLocator, ToolStatus};
+use crate::i18n::{self, Locale};
 use crate::safety;
 use crate::usb_modes::{self, DetectedUsbMode};
 use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, RichText, Stroke};
@@ -205,6 +206,7 @@ enum UiMessage {
 pub struct DroidNowApp {
     tools: ToolLocator,
     tool_status: ToolStatus,
+    locale: Locale,
     devices: Vec<Device>,
     usb_modes: Vec<DetectedUsbMode>,
     usb_scanning: bool,
@@ -233,6 +235,7 @@ impl DroidNowApp {
         let mut app = Self {
             tools: ToolLocator::default(),
             tool_status: ToolLocator::default().status(),
+            locale: Locale::default(),
             devices: Vec::new(),
             usb_modes: Vec::new(),
             usb_scanning: false,
@@ -475,7 +478,10 @@ impl DroidNowApp {
 
     fn choose_tools_folder(&mut self, ctx: &egui::Context) {
         if let Some(path) = rfd::FileDialog::new()
-            .set_title("Pilih folder Android SDK Platform-Tools")
+            .set_title(i18n::tr(
+                self.locale,
+                "Pilih folder Android SDK Platform-Tools",
+            ))
             .pick_folder()
         {
             match self.tools.set_directory(path.clone()) {
@@ -491,7 +497,7 @@ impl DroidNowApp {
 
     fn choose_rom_folder(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .set_title("Pilih folder ROM hasil ekstrak")
+            .set_title(i18n::tr(self.locale, "Pilih folder ROM hasil ekstrak"))
             .pick_folder()
         {
             self.rom_folder = path.display().to_string();
@@ -513,7 +519,7 @@ impl DroidNowApp {
 
     fn export_case_archive(&mut self) {
         let Some(path) = rfd::FileDialog::new()
-            .set_title("Simpan laporan diagnostik DroidNow")
+            .set_title(i18n::tr(self.locale, "Simpan laporan diagnostik DroidNow"))
             .set_file_name("DroidNow-case.json")
             .save_file()
         else {
@@ -570,10 +576,23 @@ impl DroidNowApp {
                         );
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let mut locale = self.locale;
+                        egui::ComboBox::from_id_salt("locale-switcher")
+                            .selected_text(locale.tag())
+                            .width(74.0)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut locale,
+                                    Locale::Indonesian,
+                                    "Bahasa Indonesia",
+                                );
+                                ui.selectable_value(&mut locale, Locale::English, "English");
+                            });
+                        self.locale = locale;
                         if draw_icon_button(
                             ui,
                             Icon::Folder,
-                            "Pilih tools",
+                            i18n::tr(self.locale, "Pilih tools"),
                             true,
                             137.0,
                             36.0,
@@ -598,13 +617,22 @@ impl DroidNowApp {
                     .inner_margin(egui::Margin::symmetric(12, 14)),
             )
             .show(ctx, |ui| {
-                ui.label(RichText::new("Navigasi").size(9.0).strong().color(MUTED));
+                ui.label(
+                    RichText::new(i18n::tr(self.locale, "Navigasi"))
+                        .size(9.0)
+                        .strong()
+                        .color(MUTED),
+                );
                 ui.add_space(10.0);
                 for (page, label, icon_kind) in [
-                    (Page::Home, "Ringkasan", Icon::Home),
-                    (Page::Log, "Aktivitas", Icon::Activity),
-                    (Page::About, "Tentang", Icon::About),
-                    (Page::Help, "Panduan", Icon::Help),
+                    (Page::Home, i18n::tr(self.locale, "Ringkasan"), Icon::Home),
+                    (
+                        Page::Log,
+                        i18n::tr(self.locale, "Aktivitas"),
+                        Icon::Activity,
+                    ),
+                    (Page::About, i18n::tr(self.locale, "Tentang"), Icon::About),
+                    (Page::Help, i18n::tr(self.locale, "Panduan"), Icon::Help),
                 ] {
                     let selected = self.page == page;
                     let width = ui.available_width();
@@ -636,12 +664,12 @@ impl DroidNowApp {
                 }
                 ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
                     ui.label(
-                        RichText::new("Diagnostik ADB & Fastboot")
+                        RichText::new(i18n::tr(self.locale, "Diagnostik ADB & Fastboot"))
                             .size(9.0)
                             .color(MUTED),
                     );
                     ui.label(
-                        RichText::new("Baca-saja · reboot terkonfirmasi")
+                        RichText::new(i18n::tr(self.locale, "Baca-saja · reboot terkonfirmasi"))
                             .size(8.5)
                             .color(AMBER),
                     );
@@ -668,26 +696,26 @@ impl DroidNowApp {
                     card(ui, |ui| {
                         ui.horizontal(|ui| {
                             draw_icon(ui, Icon::Help, 17.0, MUTED);
-                            ui.label(RichText::new("Sambungkan perangkat").size(14.0).strong().color(TEXT));
+                            ui.label(RichText::new(i18n::tr(self.locale, "Sambungkan perangkat")).size(14.0).strong().color(TEXT));
                         });
                         ui.add_space(9.0);
-                        bullet(ui, "ADB", "Aktifkan USB debugging dan sambungkan perangkat dengan kabel data.");
-                        bullet(ui, "Izin", "Setujui permintaan akses di layar perangkat jika muncul.");
-                        bullet(ui, "Fastboot", "Masuk ke mode Fastboot sesuai petunjuk model, lalu sambungkan USB.");
+                        bullet(ui, "ADB", i18n::tr(self.locale, "Aktifkan USB debugging dan sambungkan perangkat dengan kabel data."));
+                        bullet(ui, i18n::tr(self.locale, "Izin"), i18n::tr(self.locale, "Setujui permintaan akses di layar perangkat jika muncul."));
+                        bullet(ui, "Fastboot", i18n::tr(self.locale, "Masuk ke mode Fastboot sesuai petunjuk model, lalu sambungkan USB."));
                         ui.add_space(5.0);
                         ui.separator();
                         ui.horizontal(|ui| {
                             draw_icon(ui, Icon::Scan, 16.0, GREEN);
-                            ui.label(RichText::new("ADB & Fastboot").size(13.0).strong().color(TEXT));
+                            ui.label(RichText::new(i18n::tr(self.locale, "ADB & Fastboot")).size(13.0).strong().color(TEXT));
                         });
                         let tools_ready = self.tool_status.adb_available && self.tool_status.fastboot_available;
                         let tools_color = if tools_ready { GREEN } else { AMBER };
-                        let status_text = if tools_ready { "Siap digunakan" } else { "Belum ditemukan" };
+                        let status_text = if tools_ready { i18n::tr(self.locale, "Siap digunakan") } else { i18n::tr(self.locale, "Belum ditemukan") };
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("Status").size(10.0).color(MUTED));
+                            ui.label(RichText::new(i18n::tr(self.locale, "Status")).size(10.0).color(MUTED));
                             ui.label(RichText::new(status_text).size(10.0).color(tools_color));
                         });
-                        ui.label(RichText::new(&self.tool_status.location).size(9.0).monospace().color(MUTED));
+                        ui.label(RichText::new(i18n::translate_text(self.locale, &self.tool_status.location)).size(9.0).monospace().color(MUTED));
                         if !tools_ready {
                             let missing = [
                                 (!self.tool_status.adb_available).then_some("adb"),
@@ -697,16 +725,16 @@ impl DroidNowApp {
                             .flatten()
                             .collect::<Vec<_>>()
                             .join(", ");
-                            ui.label(RichText::new(format!("Belum ditemukan: {missing}")).size(10.0).color(AMBER));
+                            ui.label(RichText::new(i18n::translate_text(self.locale, &format!("Belum ditemukan: {missing}"))).size(10.0).color(AMBER));
                         }
                         ui.add_space(7.0);
-                        ui.label(RichText::new("Tombol utama mengunduh Platform-Tools resmi dari Google jika ADB atau Fastboot belum tersedia.").size(9.0).color(MUTED));
-                        ui.label(RichText::new("Program dari folder pilihan tidak diperiksa tanda tangan atau hash-nya. Gunakan sumber tepercaya.").size(9.0).color(AMBER));
+                        ui.label(RichText::new(i18n::tr(self.locale, "Tombol utama mengunduh Platform-Tools resmi dari Google jika ADB atau Fastboot belum tersedia.")).size(9.0).color(MUTED));
+                        ui.label(RichText::new(i18n::tr(self.locale, "Program dari folder pilihan tidak diperiksa tanda tangan atau hash-nya. Gunakan sumber tepercaya.")).size(9.0).color(AMBER));
                         ui.add_space(5.0);
-                        if draw_icon_button(ui, Icon::Folder, "Pilih folder Platform-Tools", true, ui.available_width(), 36.0, false).clicked() {
+                        if draw_icon_button(ui, Icon::Folder, i18n::tr(self.locale, "Pilih folder Platform-Tools"), true, ui.available_width(), 36.0, false).clicked() {
                             self.choose_tools_folder(ui.ctx());
                         }
-                        if cfg!(target_os = "windows") && draw_icon_button(ui, Icon::Shield, "Petunjuk driver USB", true, ui.available_width(), 36.0, false).clicked() {
+                        if cfg!(target_os = "windows") && draw_icon_button(ui, Icon::Shield, i18n::tr(self.locale, "Petunjuk driver USB"), true, ui.available_width(), 36.0, false).clicked() {
                             self.show_driver_dialog = true;
                         }
                     });
@@ -714,20 +742,20 @@ impl DroidNowApp {
                     card(ui, |ui| {
                         ui.horizontal(|ui| {
                             draw_icon(ui, Icon::Shield, 17.0, AMBER);
-                            ui.label(RichText::new("Batasan keamanan").size(14.0).strong().color(TEXT));
+                            ui.label(RichText::new(i18n::tr(self.locale, "Batasan keamanan")).size(14.0).strong().color(TEXT));
                         });
                         ui.add_space(7.0);
-                        ui.label(RichText::new("DroidNow hanya membaca perangkat dan dapat memulai ulang setelah konfirmasi. Aplikasi tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi.").size(10.0).color(MUTED));
+                        ui.label(RichText::new(i18n::tr(self.locale, "DroidNow hanya membaca perangkat dan dapat memulai ulang setelah konfirmasi. Aplikasi tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi.")).size(10.0).color(MUTED));
                         ui.add_space(7.0);
-                        ui.label(RichText::new("Baca & mulai ulang saja").size(10.0).strong().color(AMBER));
+                        ui.label(RichText::new(i18n::tr(self.locale, "Baca & mulai ulang saja")).size(10.0).strong().color(AMBER));
                     });
                     ui.add_space(10.0);
                     card(ui, |ui| {
                         ui.horizontal(|ui| {
                             draw_icon(ui, Icon::Activity, 17.0, MUTED);
-                            ui.label(RichText::new("Aktivitas terbaru").size(14.0).strong().color(TEXT));
+                            ui.label(RichText::new(i18n::tr(self.locale, "Aktivitas terbaru")).size(14.0).strong().color(TEXT));
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if ui.button(RichText::new("Buka riwayat").size(10.0).color(GREEN)).clicked() {
+                                if ui.button(RichText::new(i18n::tr(self.locale, "Buka riwayat")).size(10.0).color(GREEN)).clicked() {
                                     self.page = Page::Log;
                                 }
                             });
@@ -743,7 +771,7 @@ impl DroidNowApp {
                             };
                             ui.horizontal_top(|ui| {
                                 ui.label(RichText::new(format!("{:02}", self.log.len().saturating_sub(index))).size(9.0).monospace().color(MUTED));
-                                ui.label(RichText::new(entry).size(9.0).color(color));
+                                ui.label(RichText::new(i18n::translate_text(self.locale, entry)).size(9.0).color(color));
                             });
                             ui.add_space(4.0);
                         }
@@ -755,38 +783,38 @@ impl DroidNowApp {
     fn draw_connection_banner(&self, ui: &mut egui::Ui) {
         let (title, message, color) = match self.selected_device() {
             None if self.scanning => (
-                "Memeriksa koneksi",
-                "DroidNow sedang mencari perangkat melalui ADB dan Fastboot.",
+                i18n::tr(self.locale, "Memeriksa koneksi"),
+                i18n::tr(self.locale, "DroidNow sedang mencari perangkat melalui ADB dan Fastboot."),
                 MUTED,
             ),
             None if !self.tool_status.adb_available && !self.tool_status.fastboot_available => (
-                "ADB/Fastboot belum tersedia",
-                "Siapkan tools resmi atau pilih folder Android SDK Platform-Tools.",
+                i18n::tr(self.locale, "ADB/Fastboot belum tersedia"),
+                i18n::tr(self.locale, "Siapkan tools resmi atau pilih folder Android SDK Platform-Tools."),
                 AMBER,
             ),
             None => (
-                "Belum ada perangkat terhubung",
-                "Sambungkan perangkat Android melalui USB, lalu pindai koneksi ADB atau Fastboot.",
+                i18n::tr(self.locale, "Belum ada perangkat terhubung"),
+                i18n::tr(self.locale, "Sambungkan perangkat Android melalui USB, lalu pindai koneksi ADB atau Fastboot."),
                 MUTED,
             ),
             Some(device) if device.mode == "adb" && device.state == "unauthorized" => (
-                "Menunggu izin USB debugging",
-                "Buka layar ponsel, lalu setujui permintaan akses dari komputer ini.",
+                i18n::tr(self.locale, "Menunggu izin USB debugging"),
+                i18n::tr(self.locale, "Buka layar ponsel, lalu setujui permintaan akses dari komputer ini."),
                 AMBER,
             ),
             Some(device) if device.mode == "adb" && device.state == "offline" => (
-                "Perangkat tidak merespons",
-                "Periksa kabel atau port USB, lalu pindai kembali.",
+                i18n::tr(self.locale, "Perangkat tidak merespons"),
+                i18n::tr(self.locale, "Periksa kabel atau port USB, lalu pindai kembali."),
                 AMBER,
             ),
             Some(device) if device.mode == "fastboot" => (
-                "Fastboot terhubung",
-                "Perangkat ditemukan dalam mode Fastboot.",
+                i18n::tr(self.locale, "Fastboot terhubung"),
+                i18n::tr(self.locale, "Perangkat ditemukan dalam mode Fastboot."),
                 GREEN,
             ),
             Some(_) => (
-                "Perangkat terhubung",
-                "Koneksi siap untuk membaca informasi dasar perangkat.",
+                i18n::tr(self.locale, "Perangkat terhubung"),
+                i18n::tr(self.locale, "Koneksi siap untuk membaca informasi dasar perangkat."),
                 GREEN,
             ),
         };
@@ -812,7 +840,7 @@ impl DroidNowApp {
             ui.horizontal(|ui| {
                 draw_icon(ui, Icon::Device, 18.0, MUTED);
                 ui.label(
-                    RichText::new("Informasi perangkat")
+                    RichText::new(i18n::tr(self.locale, "Informasi perangkat"))
                         .size(14.0)
                         .strong()
                         .color(TEXT),
@@ -824,26 +852,27 @@ impl DroidNowApp {
                             .map(|device| {
                                 format!("{} · {}", device.mode.to_uppercase(), device.serial)
                             })
-                            .unwrap_or_else(|| "Pilih perangkat".into());
+                            .unwrap_or_else(|| i18n::tr(self.locale, "Pilih perangkat").into());
                         let mut selected = self.selected_index;
                         let combo_id = ui.make_persistent_id(egui::Id::new("Perangkat"));
-                        let response = egui::ComboBox::from_label("Perangkat")
-                            .selected_text(RichText::new(selected_label).size(9.0).color(TEXT))
-                            .show_ui(ui, |ui| {
-                                for (index, device) in self.devices.iter().enumerate() {
-                                    ui.selectable_value(
-                                        &mut selected,
-                                        Some(index),
-                                        format!(
-                                            "{} · {} · {}",
-                                            device.mode.to_uppercase(),
-                                            device.serial,
-                                            device.state
-                                        ),
-                                    );
-                                }
-                            })
-                            .response;
+                        let response =
+                            egui::ComboBox::from_label(i18n::tr(self.locale, "Perangkat"))
+                                .selected_text(RichText::new(selected_label).size(9.0).color(TEXT))
+                                .show_ui(ui, |ui| {
+                                    for (index, device) in self.devices.iter().enumerate() {
+                                        ui.selectable_value(
+                                            &mut selected,
+                                            Some(index),
+                                            format!(
+                                                "{} · {} · {}",
+                                                device.mode.to_uppercase(),
+                                                device.serial,
+                                                device.state
+                                            ),
+                                        );
+                                    }
+                                })
+                                .response;
                         let popup_open = egui::ComboBox::is_open(ctx, combo_id);
                         let key_step = if response.has_focus() && !popup_open {
                             ctx.input(|input| {
@@ -878,7 +907,11 @@ impl DroidNowApp {
                                     .color(MUTED),
                             );
                         } else {
-                            ui.label(RichText::new("Belum dipilih").size(9.0).color(MUTED));
+                            ui.label(
+                                RichText::new(i18n::tr(self.locale, "Belum dipilih"))
+                                    .size(9.0)
+                                    .color(MUTED),
+                            );
                         }
                     }
                 });
@@ -891,39 +924,49 @@ impl DroidNowApp {
                         if serial == &device.serial && error == "Membaca identitas perangkat…" =>
                     {
                         ui.label(
-                            RichText::new("Membaca informasi dasar perangkat…")
-                                .size(10.0)
-                                .color(MUTED),
+                            RichText::new(i18n::tr(
+                                self.locale,
+                                "Membaca informasi dasar perangkat…",
+                            ))
+                            .size(10.0)
+                            .color(MUTED),
                         );
                     }
                     Some((serial, Err(error))) if serial == &device.serial => {
                         ui.label(
-                            RichText::new(format!(
+                            RichText::new(i18n::translate_text(self.locale, &format!(
                                 "Informasi dasar tidak dapat dibaca: {error}. Periksa koneksi dan ketersediaan tools."
-                            ))
+                            )))
                             .size(10.0)
                             .color(RED),
                         );
                     }
                     _ => {
                         ui.label(
-                            RichText::new("Menunggu hasil pembacaan informasi dasar…")
-                                .size(10.0)
-                                .color(MUTED),
+                            RichText::new(i18n::tr(
+                                self.locale,
+                                "Menunggu hasil pembacaan informasi dasar…",
+                            ))
+                            .size(10.0)
+                            .color(MUTED),
                         );
                     }
                 }
             } else if self.scanning {
                 ui.label(
-                    RichText::new("Memindai perangkat Android yang terhubung…")
-                        .size(10.0)
-                        .color(MUTED),
+                    RichText::new(i18n::tr(
+                        self.locale,
+                        "Memindai perangkat Android yang terhubung…",
+                    ))
+                    .size(10.0)
+                    .color(MUTED),
                 );
             } else {
                 ui.label(
-                    RichText::new(
+                    RichText::new(i18n::tr(
+                        self.locale,
                         "Sambungkan perangkat melalui USB untuk membaca informasi yang tersedia.",
-                    )
+                    ))
                     .size(10.0)
                     .color(MUTED),
                 );
@@ -943,9 +986,9 @@ impl DroidNowApp {
                 }
             }
             let missing_value = if self.selected_device().is_some() {
-                "Belum terbaca"
+                i18n::tr(self.locale, "Belum terbaca")
             } else {
-                "Belum tersedia"
+                i18n::tr(self.locale, "Belum tersedia")
             };
             let model = values
                 .get("model")
@@ -973,24 +1016,44 @@ impl DroidNowApp {
                 .map(|device| format!("{} · {}", device.mode.to_uppercase(), device.state))
                 .unwrap_or_else(|| missing_value.into());
             ui.columns(2, |columns| {
-                kv_row(&mut columns[0], "Model", &model);
-                kv_row(&mut columns[0], "Kode perangkat", &codename);
-                kv_row(&mut columns[0], "Versi Android", &android);
-                kv_row(&mut columns[1], "Status bootloader", &bootloader);
-                kv_row(&mut columns[1], "Nomor seri", &serial);
-                kv_row(&mut columns[1], "Koneksi", &connection);
+                kv_row(&mut columns[0], i18n::tr(self.locale, "Model"), &model);
+                kv_row(
+                    &mut columns[0],
+                    i18n::tr(self.locale, "Kode perangkat"),
+                    &codename,
+                );
+                kv_row(
+                    &mut columns[0],
+                    i18n::tr(self.locale, "Versi Android"),
+                    &android,
+                );
+                kv_row(
+                    &mut columns[1],
+                    i18n::tr(self.locale, "Status bootloader"),
+                    &bootloader,
+                );
+                kv_row(
+                    &mut columns[1],
+                    i18n::tr(self.locale, "Nomor seri"),
+                    &serial,
+                );
+                kv_row(
+                    &mut columns[1],
+                    i18n::tr(self.locale, "Koneksi"),
+                    &connection,
+                );
             });
             if let Some((info_serial, Ok(info))) = self.device_info.as_ref() {
                 if self
                     .selected_device()
                     .is_some_and(|device| device.serial == *info_serial)
                 {
-                    egui::CollapsingHeader::new("Detail teknis perangkat")
+                    egui::CollapsingHeader::new(i18n::tr(self.locale, "Detail teknis perangkat"))
                         .default_open(false)
                         .show(ui, |ui| {
-                            ui.label(RichText::new("Nilai kosong atau gagal dibaca tidak membuktikan perangkat aman.").size(9.0).color(AMBER));
+                            ui.label(RichText::new(i18n::tr(self.locale, "Nilai kosong atau gagal dibaca tidak membuktikan perangkat aman.")).size(9.0).color(AMBER));
                             for line in info.lines() {
-                                ui.label(RichText::new(line).size(9.0).monospace().color(MUTED));
+                                ui.label(RichText::new(i18n::translate_text(self.locale, line)).size(9.0).monospace().color(MUTED));
                             }
                         });
                 }
@@ -1000,9 +1063,15 @@ impl DroidNowApp {
                     ui.add_space(5.0);
                     ui.label(
                         RichText::new(if device.state == "unauthorized" {
-                            "Buka layar ponsel dan setujui permintaan USB debugging."
+                            i18n::tr(
+                                self.locale,
+                                "Buka layar ponsel dan setujui permintaan USB debugging.",
+                            )
                         } else {
-                            "Coba kabel atau port USB lain, lalu sambungkan kembali."
+                            i18n::tr(
+                                self.locale,
+                                "Coba kabel atau port USB lain, lalu sambungkan kembali.",
+                            )
                         })
                         .size(9.0)
                         .color(AMBER),
@@ -1017,44 +1086,61 @@ impl DroidNowApp {
             ui.horizontal(|ui| {
                 draw_icon(ui, Icon::Device, 18.0, MUTED);
                 ui.label(
-                    RichText::new("Mode USB teramati")
+                    RichText::new(i18n::tr(self.locale, "Mode USB teramati"))
                         .size(14.0)
                         .strong()
                         .color(TEXT),
                 );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(RichText::new("Baca-saja").size(9.0).color(AMBER));
+                    ui.label(
+                        RichText::new(i18n::tr(self.locale, "Baca-saja"))
+                            .size(9.0)
+                            .color(AMBER),
+                    );
                 });
             });
             ui.add_space(6.0);
             ui.label(
-                RichText::new("Petunjuk mode dari VID:PID yang terlihat pada sistem.")
-                    .size(10.0)
-                    .color(MUTED),
+                RichText::new(i18n::tr(
+                    self.locale,
+                    "Petunjuk mode dari VID:PID yang terlihat pada sistem.",
+                ))
+                .size(10.0)
+                .color(MUTED),
             );
             if self.usb_scanning {
                 ui.label(
-                    RichText::new("Memeriksa daftar perangkat USB…")
+                    RichText::new(i18n::tr(self.locale, "Memeriksa daftar perangkat USB…"))
                         .size(10.0)
                         .color(MUTED),
                 );
             } else if self.usb_scan_error.is_some() {
                 ui.label(
-                    RichText::new("Daftar perangkat USB tidak dapat dibaca saat ini.")
-                        .size(10.0)
-                        .color(AMBER),
+                    RichText::new(i18n::tr(
+                        self.locale,
+                        "Daftar perangkat USB tidak dapat dibaca saat ini.",
+                    ))
+                    .size(10.0)
+                    .color(AMBER),
                 );
             } else if self.usb_modes.is_empty() {
                 ui.label(
-                    RichText::new("Tidak ada ID USB yang dikenali untuk petunjuk mode.")
-                        .size(10.0)
-                        .color(MUTED),
+                    RichText::new(i18n::tr(
+                        self.locale,
+                        "Tidak ada ID USB yang dikenali untuk petunjuk mode.",
+                    ))
+                    .size(10.0)
+                    .color(MUTED),
                 );
             } else {
                 ui.add_space(3.0);
                 for detected in &self.usb_modes {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(detected.mode.label()).size(10.0).color(TEXT));
+                        ui.label(
+                            RichText::new(i18n::translate_text(self.locale, detected.mode.label()))
+                                .size(10.0)
+                                .color(TEXT),
+                        );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             ui.label(
                                 RichText::new(detected.usb_id())
@@ -1069,7 +1155,7 @@ impl DroidNowApp {
             ui.add_space(5.0);
             ui.label(
                 RichText::new(
-                    "Pemindaian ini tidak mengirim perintah USB. Label tidak memverifikasi protokol atau dukungan flashing.",
+                    i18n::tr(self.locale, "Pemindaian ini tidak mengirim perintah USB. Label tidak memverifikasi protokol atau dukungan flashing."),
                 )
                 .size(9.0)
                 .color(AMBER),
@@ -1082,22 +1168,23 @@ impl DroidNowApp {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
-                        RichText::new("Mulai ulang perangkat")
+                        RichText::new(i18n::tr(self.locale, "Mulai ulang perangkat"))
                             .size(14.0)
                             .strong()
                             .color(TEXT),
                     );
                     ui.label(
-                        RichText::new(
+                        RichText::new(i18n::tr(
+                            self.locale,
                             "Konfirmasi tetap diperlukan sebelum perangkat dimulai ulang.",
-                        )
+                        ))
                         .size(10.0)
                         .color(MUTED),
                     );
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
-                        RichText::new("Aksi yang tersedia")
+                        RichText::new(i18n::tr(self.locale, "Aksi yang tersedia"))
                             .size(9.0)
                             .monospace()
                             .strong()
@@ -1109,9 +1196,21 @@ impl DroidNowApp {
             ui.horizontal(|ui| {
                 let button_width = ((ui.available_width() - 16.0) / 3.0).max(120.0);
                 for (label, action, icon_kind) in [
-                    ("Mulai ulang ke Android", "system", Icon::Reboot),
-                    ("Buka Recovery", "recovery", Icon::Reboot),
-                    ("Buka Fastboot", "bootloader", Icon::Reboot),
+                    (
+                        i18n::tr(self.locale, "Mulai ulang ke Android"),
+                        "system",
+                        Icon::Reboot,
+                    ),
+                    (
+                        i18n::tr(self.locale, "Buka Recovery"),
+                        "recovery",
+                        Icon::Reboot,
+                    ),
+                    (
+                        i18n::tr(self.locale, "Buka Fastboot"),
+                        "bootloader",
+                        Icon::Reboot,
+                    ),
                 ] {
                     let enabled = self.selected_device().is_some_and(|device| {
                         ((device.mode == "adb" && device.state == "device")
@@ -1133,7 +1232,7 @@ impl DroidNowApp {
             ui.horizontal(|ui| {
                 draw_icon(ui, Icon::Folder, 18.0, MUTED);
                 ui.label(
-                    RichText::new("Periksa berkas ROM lokal")
+                    RichText::new(i18n::tr(self.locale, "Periksa berkas ROM lokal"))
                         .size(14.0)
                         .strong()
                         .color(TEXT),
@@ -1141,14 +1240,14 @@ impl DroidNowApp {
             });
             ui.label(
                 RichText::new(
-                    "Membaca nama berkas dan menghitung SHA-256 secara lokal. Skrip tidak dijalankan dan perangkat tidak diubah.",
+                    i18n::tr(self.locale, "Membaca nama berkas dan menghitung SHA-256 secara lokal. Skrip tidak dijalankan dan perangkat tidak diubah."),
                 )
                 .size(10.0)
                 .color(MUTED),
             );
             ui.add_space(8.0);
             ui.label(
-                RichText::new("Folder yang akan diperiksa")
+                RichText::new(i18n::tr(self.locale, "Folder yang akan diperiksa"))
                     .size(9.0)
                     .color(MUTED),
             );
@@ -1163,13 +1262,13 @@ impl DroidNowApp {
                     ui.add_sized(
                         [text_width, 32.0],
                         egui::TextEdit::singleline(&mut self.rom_folder)
-                            .hint_text("Pilih folder ROM hasil ekstrak"),
+                            .hint_text(i18n::tr(self.locale, "Pilih folder ROM hasil ekstrak")),
                     );
                 });
                 if draw_icon_button(
                     ui,
                     Icon::Folder,
-                    "Pilih folder",
+                    i18n::tr(self.locale, "Pilih folder"),
                     can_edit_folder,
                     browse_width,
                     36.0,
@@ -1182,7 +1281,7 @@ impl DroidNowApp {
                 if draw_icon_button(
                     ui,
                     Icon::Scan,
-                    "Periksa berkas",
+                    i18n::tr(self.locale, "Periksa berkas"),
                     can_inspect,
                     inspect_width,
                     36.0,
@@ -1196,20 +1295,29 @@ impl DroidNowApp {
             ui.add_space(7.0);
             if self.inspecting_rom {
                 ui.label(
-                    RichText::new("Memeriksa isi folder dan menghitung SHA-256 berkas lokal…")
-                        .size(10.0)
-                        .color(MUTED),
+                    RichText::new(i18n::tr(
+                        self.locale,
+                        "Memeriksa isi folder dan menghitung SHA-256 berkas lokal…",
+                    ))
+                    .size(10.0)
+                    .color(MUTED),
                 );
             } else if let Some(error) = &self.rom_error {
                 ui.label(
-                    RichText::new(format!("Pemeriksaan gagal: {error}"))
-                        .size(10.0)
-                        .color(RED),
+                    RichText::new(i18n::translate_text(
+                        self.locale,
+                        &format!("Pemeriksaan gagal: {error}"),
+                    ))
+                    .size(10.0)
+                    .color(RED),
                 );
                 ui.label(
-                    RichText::new("Pilih folder yang benar, lalu jalankan pemeriksaan lagi.")
-                        .size(9.0)
-                        .color(MUTED),
+                    RichText::new(i18n::tr(
+                        self.locale,
+                        "Pilih folder yang benar, lalu jalankan pemeriksaan lagi.",
+                    ))
+                    .size(9.0)
+                    .color(MUTED),
                 );
             } else if let Some((_path, inspection)) = &self.rom {
                 ui.horizontal_wrapped(|ui| {
@@ -1222,7 +1330,7 @@ impl DroidNowApp {
                     );
                 });
                 let summary = if inspection.entries.is_empty() {
-                    "Folder ini tidak berisi berkas gambar atau metadata yang dikenali. Pilih folder ROM hasil ekstrak.".to_string()
+                    i18n::tr(self.locale, "Folder ini tidak berisi berkas gambar atau metadata yang dikenali. Pilih folder ROM hasil ekstrak.").to_string()
                 } else {
                     format!(
                         "{} berkas terkait · {}",
@@ -1230,11 +1338,18 @@ impl DroidNowApp {
                         inspection.script_hint
                     )
                 };
-                ui.label(RichText::new(summary).size(9.0).color(MUTED));
                 ui.label(
-                    RichText::new("Sumber dan kecocokan firmware belum dapat dipastikan.")
+                    RichText::new(i18n::translate_text(self.locale, &summary))
                         .size(9.0)
-                        .color(AMBER),
+                        .color(MUTED),
+                );
+                ui.label(
+                    RichText::new(i18n::tr(
+                        self.locale,
+                        "Sumber dan kecocokan firmware belum dapat dipastikan.",
+                    ))
+                    .size(9.0)
+                    .color(AMBER),
                 );
                 egui::ScrollArea::vertical()
                     .max_height(78.0)
@@ -1257,19 +1372,28 @@ impl DroidNowApp {
                                     entry
                                         .hash_error
                                         .as_deref()
-                                        .unwrap_or("SHA-256 tidak tersedia")
+                                        .unwrap_or(i18n::tr(self.locale, "SHA-256 tidak tersedia"))
                                         .to_string()
                                 },
                                 |hash| format!("{} B · SHA-256 {hash}", entry.size_bytes),
                             );
-                            ui.label(RichText::new(hash_text).size(8.0).monospace().color(MUTED));
+                            ui.label(
+                                RichText::new(i18n::translate_text(self.locale, &hash_text))
+                                    .size(8.0)
+                                    .monospace()
+                                    .color(MUTED),
+                            );
                         }
                     });
-                ui.label(RichText::new(&inspection.warning).size(10.0).color(AMBER));
+                ui.label(
+                    RichText::new(i18n::translate_text(self.locale, &inspection.warning))
+                        .size(10.0)
+                        .color(AMBER),
+                );
             } else {
                 ui.label(
                     RichText::new(
-                        "Pilih folder untuk melihat nama, ukuran, dan SHA-256 berkas yang ditemukan.",
+                        i18n::tr(self.locale, "Pilih folder untuk melihat nama, ukuran, dan SHA-256 berkas yang ditemukan."),
                     )
                     .size(10.0)
                     .color(MUTED),
@@ -1289,23 +1413,28 @@ impl DroidNowApp {
         let device = self.selected_device().cloned();
         let mut confirm = false;
         let mut cancel = false;
-        egui::Window::new("Konfirmasi mulai ulang")
+        egui::Window::new(i18n::tr(self.locale, "Konfirmasi mulai ulang"))
             .id(egui::Id::new("reboot-confirm"))
             .collapsible(false)
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.set_min_width(330.0);
-                ui.label(RichText::new("Konfirmasi").size(9.0).strong().color(AMBER));
+                ui.label(
+                    RichText::new(i18n::tr(self.locale, "Konfirmasi"))
+                        .size(9.0)
+                        .strong()
+                        .color(AMBER),
+                );
                 ui.add_space(5.0);
                 ui.label(
-                    RichText::new(action_prompt(action))
+                    RichText::new(action_prompt(self.locale, action))
                         .size(16.0)
                         .strong()
                         .color(TEXT),
                 );
                 ui.label(
-                    RichText::new(action_description(action))
+                    RichText::new(action_description(self.locale, action))
                         .size(10.0)
                         .color(MUTED),
                 );
@@ -1324,12 +1453,12 @@ impl DroidNowApp {
                 }
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Batal").clicked() {
+                    if ui.button(i18n::tr(self.locale, "Batal")).clicked() {
                         cancel = true;
                     }
                     if ui
                         .button(
-                            RichText::new("Mulai ulang sekarang")
+                            RichText::new(i18n::tr(self.locale, "Mulai ulang sekarang"))
                                 .strong()
                                 .color(Color32::from_rgb(8, 31, 25)),
                         )
@@ -1366,13 +1495,17 @@ impl eframe::App for DroidNowApp {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let app_status = if self.scanning {
-                        "Memindai…"
+                        i18n::tr(self.locale, "Memindai…")
                     } else if self.installing_tools {
-                        "Menyiapkan ADB/Fastboot…"
+                        i18n::tr(self.locale, "Menyiapkan ADB/Fastboot…")
                     } else {
-                        "Siap"
+                        i18n::tr(self.locale, "Siap")
                     };
-                    ui.label(RichText::new("Status aplikasi:").size(9.0).color(MUTED));
+                    ui.label(
+                        RichText::new(i18n::tr(self.locale, "Status aplikasi:"))
+                            .size(9.0)
+                            .color(MUTED),
+                    );
                     ui.label(RichText::new(app_status).size(9.0).strong().color(GREEN));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let fastboot_connected =
@@ -1387,9 +1520,9 @@ impl eframe::App for DroidNowApp {
                             RichText::new(format!(
                                 "Fastboot: {}",
                                 if fastboot_connected {
-                                    "Aktif"
+                                    i18n::tr(self.locale, "Aktif")
                                 } else {
-                                    "Tidak terhubung"
+                                    i18n::tr(self.locale, "Tidak terhubung")
                                 }
                             ))
                             .size(9.0)
@@ -1400,9 +1533,9 @@ impl eframe::App for DroidNowApp {
                             RichText::new(format!(
                                 "ADB: {}",
                                 if adb_connected {
-                                    "Terhubung"
+                                    i18n::tr(self.locale, "Terhubung")
                                 } else {
-                                    "Tidak terhubung"
+                                    i18n::tr(self.locale, "Tidak terhubung")
                                 }
                             ))
                             .size(9.0)
@@ -1424,20 +1557,20 @@ impl eframe::App for DroidNowApp {
                         Page::Home => {
                             ui.horizontal(|ui| {
                                 ui.vertical(|ui| {
-                                    ui.label(RichText::new("Diagnostik perangkat Android").size(11.0).strong().color(MUTED));
-                                    ui.heading(RichText::new("Perangkat dan koneksi").size(24.0).strong().color(TEXT));
-                                    ui.label(RichText::new("Baca informasi perangkat dan periksa berkas lokal dengan aman.").size(11.0).color(MUTED));
+                                    ui.label(RichText::new(i18n::tr(self.locale, "Diagnostik perangkat Android")).size(11.0).strong().color(MUTED));
+                                    ui.heading(RichText::new(i18n::tr(self.locale, "Perangkat dan koneksi")).size(24.0).strong().color(TEXT));
+                                    ui.label(RichText::new(i18n::tr(self.locale, "Baca informasi perangkat dan periksa berkas lokal dengan aman.")).size(11.0).color(MUTED));
                                 });
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let tools_ready = self.tool_status.adb_available && self.tool_status.fastboot_available;
                                     let text = if self.scanning {
-                                        "Memindai…"
+                                        i18n::tr(self.locale, "Memindai…")
                                     } else if self.installing_tools {
-                                        "Menyiapkan…"
+                                        i18n::tr(self.locale, "Menyiapkan…")
                                     } else if tools_ready {
-                                        "Pindai perangkat"
+                                        i18n::tr(self.locale, "Pindai perangkat")
                                     } else {
-                                        "Siapkan ADB/Fastboot"
+                                        i18n::tr(self.locale, "Siapkan ADB/Fastboot")
                                     };
                                     let enabled = !self.scanning && !self.installing_tools && !self.rebooting;
                                     if draw_icon_button(ui, Icon::Scan, text, enabled, 198.0, 40.0, true).clicked() {
@@ -1469,7 +1602,7 @@ impl eframe::App for DroidNowApp {
                                         draw_icon(ui, Icon::Shield, 17.0, AMBER);
                                         ui.add(
                                             egui::Label::new(
-                                                RichText::new("DroidNow membaca informasi perangkat dan memeriksa berkas lokal. Memulai ulang selalu meminta konfirmasi; operasi penulisan tidak tersedia.")
+                                                RichText::new(i18n::tr(self.locale, "DroidNow membaca informasi perangkat dan memeriksa berkas lokal. Memulai ulang selalu meminta konfirmasi; operasi penulisan tidak tersedia."))
                                                     .size(10.0)
                                                     .color(TEXT),
                                             )
@@ -1479,13 +1612,13 @@ impl eframe::App for DroidNowApp {
                                 });
                         }
                         Page::Log => {
-                            page_heading(ui, "Riwayat aktivitas", "Catatan sesi ini tersimpan di komputer dan tidak dikirim secara otomatis.");
+                            page_heading(ui, self.locale, i18n::tr(self.locale, "Riwayat aktivitas"), i18n::tr(self.locale, "Catatan sesi ini tersimpan di komputer dan tidak dikirim secara otomatis."));
                             ui.add_space(10.0);
                             card(ui, |ui| {
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new(format!("{} catatan aktivitas", self.log.len())).size(10.0).color(MUTED));
+                                    ui.label(RichText::new(i18n::translate_text(self.locale, &format!("{} catatan aktivitas", self.log.len()))).size(10.0).color(MUTED));
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        if ui.button("Ekspor laporan…").clicked() {
+                                        if ui.button(i18n::tr(self.locale, "Ekspor laporan…")).clicked() {
                                             request_case_export = true;
                                         }
                                     });
@@ -1496,7 +1629,7 @@ impl eframe::App for DroidNowApp {
                                         let color = if entry.contains("gagal") || entry.contains("tidak ditemukan") { RED } else if entry.contains("berhasil") || entry.contains("Ditemukan") { GREEN } else { MUTED };
                                         ui.horizontal_top(|ui| {
                                             ui.label(RichText::new(format!("{:03}", index + 1)).size(9.0).monospace().color(MUTED));
-                                            ui.label(RichText::new(entry).size(10.0).color(color));
+                                            ui.label(RichText::new(i18n::translate_text(self.locale, entry)).size(10.0).color(color));
                                         });
                                         ui.separator();
                                     }
@@ -1504,40 +1637,40 @@ impl eframe::App for DroidNowApp {
                             });
                         }
                         Page::About => {
-                            page_heading(ui, "Tentang DroidNow", "Pemeriksaan koneksi dan informasi dasar Android.");
+                            page_heading(ui, self.locale, i18n::tr(self.locale, "Tentang DroidNow"), i18n::tr(self.locale, "Pemeriksaan koneksi dan informasi dasar Android."));
                             ui.add_space(10.0);
                             card(ui, |ui| {
                                 ui.label(RichText::new(format!("DroidNow v{}", env!("CARGO_PKG_VERSION"))).size(15.0).strong().color(TEXT));
                                 ui.add_space(6.0);
-                                ui.label(RichText::new("DroidNow membaca informasi perangkat dan memeriksa berkas lokal tanpa memasang apa pun ke ponsel.").size(11.0).color(MUTED));
+                                ui.label(RichText::new(i18n::tr(self.locale, "DroidNow membaca informasi perangkat dan memeriksa berkas lokal tanpa memasang apa pun ke ponsel.")).size(11.0).color(MUTED));
                                 ui.add_space(10.0);
-                                ui.label(RichText::new("Fungsi").size(11.0).strong().color(TEXT));
-                                ui.label(RichText::new("Mendeteksi perangkat yang terlihat melalui ADB/Fastboot, membaca informasi yang tersedia, memeriksa SHA-256 berkas pilihan, dan menyimpan laporan lokal dengan sebagian data disamarkan.").size(10.0).color(MUTED));
+                                ui.label(RichText::new(i18n::tr(self.locale, "Fungsi")).size(11.0).strong().color(TEXT));
+                                ui.label(RichText::new(i18n::tr(self.locale, "Mendeteksi perangkat yang terlihat melalui ADB/Fastboot, membaca informasi yang tersedia, memeriksa SHA-256 berkas pilihan, dan menyimpan laporan lokal dengan sebagian data disamarkan.")).size(10.0).color(MUTED));
                                 ui.add_space(10.0);
-                                ui.label(RichText::new("Catatan pemeriksaan").size(11.0).strong().color(TEXT));
-                                ui.label(RichText::new("Hasil pemeriksaan membantu meninjau informasi yang tersedia; hasil ini tidak membuktikan sumber atau kecocokan firmware.").size(10.0).color(MUTED));
+                                ui.label(RichText::new(i18n::tr(self.locale, "Catatan pemeriksaan")).size(11.0).strong().color(TEXT));
+                                ui.label(RichText::new(i18n::tr(self.locale, "Hasil pemeriksaan membantu meninjau informasi yang tersedia; hasil ini tidak membuktikan sumber atau kecocokan firmware.")).size(10.0).color(MUTED));
                                 ui.add_space(10.0);
-                                ui.label(RichText::new("Keamanan").size(11.0).strong().color(AMBER));
-                                ui.label(RichText::new("DroidNow tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi. Setiap mulai ulang meminta konfirmasi.").size(10.0).color(MUTED));
+                                ui.label(RichText::new(i18n::tr(self.locale, "Keamanan")).size(11.0).strong().color(AMBER));
+                                ui.label(RichText::new(i18n::tr(self.locale, "DroidNow tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi. Setiap mulai ulang meminta konfirmasi.")).size(10.0).color(MUTED));
                             });
                         }
                         Page::Help => {
-                            page_heading(ui, "Mulai cepat", "Siapkan koneksi, lalu tinjau hasil pemeriksaan.");
+                            page_heading(ui, self.locale, i18n::tr(self.locale, "Mulai cepat"), i18n::tr(self.locale, "Siapkan koneksi, lalu tinjau hasil pemeriksaan."));
                             ui.add_space(10.0);
                             card(ui, |ui| {
-                                help_step(ui, "1", "Siapkan ADB dan Fastboot", "Jika belum tersedia, tekan Siapkan ADB/Fastboot di halaman utama. DroidNow mengunduh tools resmi Google dan memindai otomatis setelah selesai.");
-                                help_step(ui, "2", "Sambungkan perangkat Android", "Untuk ADB, aktifkan USB debugging, sambungkan kabel data, lalu setujui permintaan akses. Untuk Fastboot, gunakan cara masuk yang sesuai dengan model perangkat.");
-                                help_step(ui, "3", "Tinjau hasil", "DroidNow memindai saat dibuka dan setelah menyiapkan tools. Jika ADB/Fastboot sudah siap, tekan Pindai perangkat untuk memeriksa lagi.");
+                                help_step(ui, "1", i18n::tr(self.locale, "Siapkan ADB dan Fastboot"), i18n::tr(self.locale, "Jika belum tersedia, tekan Siapkan ADB/Fastboot di halaman utama. DroidNow mengunduh tools resmi Google dan memindai otomatis setelah selesai."));
+                                help_step(ui, "2", i18n::tr(self.locale, "Sambungkan perangkat Android"), i18n::tr(self.locale, "Untuk ADB, aktifkan USB debugging, sambungkan kabel data, lalu setujui permintaan akses. Untuk Fastboot, gunakan cara masuk yang sesuai dengan model perangkat."));
+                                help_step(ui, "3", i18n::tr(self.locale, "Tinjau hasil"), i18n::tr(self.locale, "DroidNow memindai saat dibuka dan setelah menyiapkan tools. Jika ADB/Fastboot sudah siap, tekan Pindai perangkat untuk memeriksa lagi."));
                             });
                             ui.add_space(9.0);
                             card(ui, |ui| {
                                 ui.horizontal(|ui| {
                                     draw_icon(ui, Icon::Shield, 17.0, AMBER);
-                                    ui.label(RichText::new("Catatan keamanan").size(13.0).strong().color(AMBER));
+                                    ui.label(RichText::new(i18n::tr(self.locale, "Catatan keamanan")).size(13.0).strong().color(AMBER));
                                 });
-                                ui.label(RichText::new("Hash berkas lokal tidak membuktikan sumber atau keamanan firmware.").size(10.0).color(MUTED));
+                                ui.label(RichText::new(i18n::tr(self.locale, "Hash berkas lokal tidak membuktikan sumber atau keamanan firmware.")).size(10.0).color(MUTED));
                                 ui.add_space(5.0);
-                                ui.label(RichText::new("Jangan gunakan hasil pemeriksaan sebagai izin untuk memasang firmware atau mengubah perangkat.").size(10.0).color(AMBER));
+                                ui.label(RichText::new(i18n::tr(self.locale, "Jangan gunakan hasil pemeriksaan sebagai izin untuk memasang firmware atau mengubah perangkat.")).size(10.0).color(AMBER));
                             });
                         }
                     }
@@ -1570,10 +1703,14 @@ fn kv_row(ui: &mut egui::Ui, label: &str, value: &str) {
     });
 }
 
-fn page_heading(ui: &mut egui::Ui, title: &str, subtitle: &str) {
+fn page_heading(ui: &mut egui::Ui, locale: Locale, title: &str, subtitle: &str) {
     ui.label(RichText::new("DroidNow").size(10.0).strong().color(MUTED));
     ui.heading(RichText::new(title).size(23.0).strong().color(TEXT));
-    ui.label(RichText::new(subtitle).size(10.0).color(MUTED));
+    ui.label(
+        RichText::new(i18n::translate_text(locale, subtitle))
+            .size(10.0)
+            .color(MUTED),
+    );
 }
 
 fn help_step(ui: &mut egui::Ui, number: &str, title: &str, description: &str) {
@@ -1643,11 +1780,11 @@ fn action_label(action: &str) -> &'static str {
     }
 }
 
-fn action_prompt(action: &str) -> &'static str {
+fn action_prompt(locale: Locale, action: &str) -> &'static str {
     match action {
-        "recovery" => "Masuk ke Recovery?",
-        "bootloader" => "Masuk ke Fastboot?",
-        _ => "Mulai ulang perangkat?",
+        "recovery" => i18n::tr(locale, "Masuk ke Recovery?"),
+        "bootloader" => i18n::tr(locale, "Masuk ke Fastboot?"),
+        _ => i18n::tr(locale, "Mulai ulang perangkat?"),
     }
 }
 
@@ -1661,21 +1798,21 @@ impl DroidNowApp {
             return;
         }
         let mut close = false;
-        egui::Window::new("Petunjuk driver USB")
+        egui::Window::new(i18n::tr(self.locale, "Petunjuk driver USB"))
             .id(egui::Id::new("generic-driver-help"))
             .collapsible(false)
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.set_min_width(390.0);
-                ui.label(RichText::new("Pemasangan driver memerlukan tindakan Anda di Windows.").size(13.0).strong().color(TEXT));
+                ui.label(RichText::new(i18n::tr(self.locale, "Pemasangan driver memerlukan tindakan Anda di Windows.")).size(13.0).strong().color(TEXT));
                 ui.add_space(6.0);
-                ui.label(RichText::new("DroidNow tidak mengunduh atau menjalankan installer driver secara otomatis. Driver yang diperlukan bergantung pada perangkat dan versi Windows.").size(10.0).color(MUTED));
+                ui.label(RichText::new(i18n::tr(self.locale, "DroidNow tidak mengunduh atau menjalankan installer driver secara otomatis. Driver yang diperlukan bergantung pada perangkat dan versi Windows.")).size(10.0).color(MUTED));
                 ui.add_space(7.0);
-                ui.label(RichText::new("Jika perangkat tidak terdeteksi, periksa kabel dan port USB. Pasang driver ADB/Fastboot hanya dari sumber tepercaya, lalu tinjau penerbit serta permintaan izin Windows sebelum melanjutkan.").size(10.0).color(AMBER));
+                ui.label(RichText::new(i18n::tr(self.locale, "Jika perangkat tidak terdeteksi, periksa kabel dan port USB. Pasang driver ADB/Fastboot hanya dari sumber tepercaya, lalu tinjau penerbit serta permintaan izin Windows sebelum melanjutkan.")).size(10.0).color(AMBER));
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Tutup").clicked() {
+                    if ui.button(i18n::tr(self.locale, "Tutup")).clicked() {
                         close = true;
                     }
                 });
@@ -1686,14 +1823,14 @@ impl DroidNowApp {
     }
 }
 
-fn action_description(action: &str) -> &'static str {
+fn action_description(locale: Locale, action: &str) -> &'static str {
     match action {
         "recovery" => {
-            "Perangkat akan dimulai ulang ke Recovery. Tindakan ini tidak memasang atau menghapus apa pun."
+            i18n::tr(locale, "Perangkat akan dimulai ulang ke Recovery. Tindakan ini tidak memasang atau menghapus apa pun.")
         }
         "bootloader" => {
-            "Perangkat akan dimulai ulang ke Fastboot. Tindakan ini tidak membuka kunci bootloader."
+            i18n::tr(locale, "Perangkat akan dimulai ulang ke Fastboot. Tindakan ini tidak membuka kunci bootloader.")
         }
-        _ => "Perangkat akan dimulai ulang ke Android. Simpan pekerjaan yang sedang berlangsung.",
+        _ => i18n::tr(locale, "Perangkat akan dimulai ulang ke Android. Simpan pekerjaan yang sedang berlangsung."),
     }
 }
