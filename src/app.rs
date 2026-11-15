@@ -606,9 +606,14 @@ impl DroidNowApp {
                 }
                 ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
                     ui.label(
-                        RichText::new("Validasi model: Redmi 4A (rolex)")
+                        RichText::new("Tujuan: semua model Xiaomi")
                             .size(9.0)
                             .color(AMBER),
+                    );
+                    ui.label(
+                        RichText::new("Validasi awal: Redmi 4A (rolex)")
+                            .size(8.5)
+                            .color(MUTED),
                     );
                     ui.label(
                         RichText::new(format!("DroidNow · v{}", env!("CARGO_PKG_VERSION")))
@@ -1344,7 +1349,7 @@ impl eframe::App for DroidNowApp {
                                 ui.vertical(|ui| {
                                     ui.label(RichText::new("Diagnostik perangkat Android").size(11.0).strong().color(MUTED));
                                     ui.heading(RichText::new("Perangkat dan koneksi").size(24.0).strong().color(TEXT));
-                                    ui.label(RichText::new("Pindai koneksi ADB/Fastboot dan baca informasi dasar. Validasi model saat ini: Xiaomi Redmi 4A (rolex).").size(11.0).color(MUTED));
+                                    ui.label(RichText::new("Tujuan: diagnostik semua model Xiaomi. Validasi awal: Redmi 4A (rolex); varian lain masih perlu diperiksa.").size(11.0).color(MUTED));
                                 });
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let tools_ready = self.tool_status.adb_available && self.tool_status.fastboot_available;
@@ -1385,7 +1390,7 @@ impl eframe::App for DroidNowApp {
                                         draw_icon(ui, Icon::Shield, 17.0, AMBER);
                                         ui.add(
                                             egui::Label::new(
-                                                RichText::new("Validasi model terbatas pada Xiaomi Redmi 4A (rolex). Pemeriksaan hanya membaca; setiap mulai ulang meminta konfirmasi.")
+                                                RichText::new("Tujuan: semua model Xiaomi. Validasi awal hanya Redmi 4A (rolex); pemeriksaan ini baca-saja dan setiap mulai ulang meminta konfirmasi.")
                                                     .size(10.0)
                                                     .color(TEXT),
                                             )
@@ -1431,7 +1436,7 @@ impl eframe::App for DroidNowApp {
                                 ui.label(RichText::new("Mendeteksi perangkat yang terlihat melalui ADB/Fastboot, membaca informasi yang tersedia, memeriksa SHA-256 berkas pilihan, dan menyimpan laporan lokal dengan sebagian data disamarkan.").size(10.0).color(MUTED));
                                 ui.add_space(10.0);
                                 ui.label(RichText::new("Cakupan validasi model").size(11.0).strong().color(TEXT));
-                                ui.label(RichText::new("Validasi identitas model saat ini hanya mencakup Xiaomi Redmi 4A (rolex). Perangkat Android lain dapat terdeteksi, tetapi belum divalidasi sebagai model yang didukung.").size(10.0).color(MUTED));
+                                ui.label(RichText::new("Tujuan produk adalah diagnostik untuk semua model Xiaomi. Validasi awal baru mencakup Redmi 4A (rolex); model, SoC, dan region lain belum divalidasi. Perangkat Android lain dapat terdeteksi secara generik.").size(10.0).color(MUTED));
                                 ui.add_space(10.0);
                                 ui.label(RichText::new("Keamanan").size(11.0).strong().color(AMBER));
                                 ui.label(RichText::new("DroidNow tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi. Setiap mulai ulang meminta konfirmasi.").size(10.0).color(MUTED));

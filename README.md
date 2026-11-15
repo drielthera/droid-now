@@ -1,12 +1,12 @@
 # DroidNow
 
-DroidNow adalah aplikasi desktop Rust dengan antarmuka egui/eframe untuk memeriksa perangkat Android melalui ADB dan Fastboot. Deteksi koneksi bersifat umum. Validasi identitas model saat ini hanya mencakup Xiaomi Redmi 4A (`rolex`).
+DroidNow adalah aplikasi desktop Rust dengan antarmuka egui/eframe untuk memeriksa perangkat Android melalui ADB dan Fastboot. Tujuan produk adalah diagnostik lintas seluruh model Xiaomi. Validasi awal baru mencakup Redmi 4A (`rolex`); model, SoC, dan region lain perlu divalidasi tersendiri sebelum dukungan firmware atau pemulihan dapat diklaim.
 
 ## Cakupan pemeriksaan
 
 DroidNow membaca informasi yang tersedia dari perangkat dan dapat memeriksa berkas lokal. Aplikasi tidak memasang firmware, membuka atau mengunci bootloader, menghapus atau memformat data, maupun menulis partisi. Perintah mulai ulang yang sudah tersedia selalu meminta konfirmasi.
 
-Perangkat Android lain dapat muncul dalam pemindaian, tetapi belum divalidasi sebagai model yang didukung. Nilai yang kosong atau gagal dibaca tetap dianggap belum diketahui. Nilai `getvar anti` yang kosong bukan bukti perangkat bebas anti-rollback.
+Perangkat Xiaomi lain dan Android lain dapat muncul dalam pemindaian generik, tetapi itu bukan bukti bahwa model atau firmware-nya telah divalidasi. Xiaomi sendiri menyatakan ketersediaan update bergantung pada model dan region ([FAQ model/region](https://www.mi.com/global/support/faq/details/KA-483292/); [jadwal HyperOS](https://www.mi.com/global/hyperos)). Nilai yang kosong atau gagal dibaca tetap dianggap belum diketahui; `getvar anti` yang kosong bukan bukti perangkat bebas anti-rollback.
 
 Pemeriksaan folder ROM menghitung ukuran dan SHA-256 berkas yang dikenal. Hash lokal hanya sidik jari berkas; hash itu tidak membuktikan sumber resmi atau kecocokan firmware. Katalog SHA-256 resmi yang terverifikasi belum tersedia.
 

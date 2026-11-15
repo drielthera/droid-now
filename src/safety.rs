@@ -129,7 +129,7 @@ pub struct SupportMatrix {
 pub fn support_matrix() -> SupportMatrix {
     SupportMatrix {
         version: SUPPORT_MATRIX_VERSION,
-        policy: "Validasi model saat ini terbatas pada Xiaomi Redmi 4A. Jangan menyimpulkan kecocokan firmware atau izin perubahan perangkat dari nama, versi, wilayah, tanda tangan, maupun nilai getvar yang kosong.",
+        policy: "Tujuan produk adalah diagnostik untuk seluruh model Xiaomi; validasi awal baru mencakup Redmi 4A. Jangan menyimpulkan kecocokan firmware atau izin perubahan perangkat dari nama, versi, wilayah, tanda tangan, maupun nilai getvar yang kosong.",
         targets: vec![SupportedTarget {
             brand: "Xiaomi",
             model: "Redmi 4A",
@@ -141,7 +141,7 @@ pub fn support_matrix() -> SupportMatrix {
             avb_status: "belum dapat dipastikan melalui pemeriksaan ini",
             write_operations_supported: false,
         }],
-        other_devices: "Perangkat Android lain dapat terdeteksi melalui ADB/Fastboot, tetapi model dan dukungan firmware belum divalidasi. Operasi tulis tidak didukung.",
+        other_devices: "Model Xiaomi lain dan perangkat Android lain dapat terdeteksi melalui ADB/Fastboot, tetapi validasi tetap bertahap per model/SoC/region dan dukungan firmware belum dibuktikan. Operasi tulis tidak didukung.",
     }
 }
 

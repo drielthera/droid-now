@@ -4,7 +4,7 @@ Pembacaan desain: aplikasi desktop diagnostik Android untuk pengguna dan teknisi
 
 ## Identitas
 
-DroidNow membantu memeriksa koneksi ADB/Fastboot, membaca informasi dasar perangkat, dan meninjau berkas lokal. Deteksi koneksi bersifat umum untuk perangkat Android yang terlihat melalui ADB/Fastboot. Validasi identitas model saat ini hanya mencakup Xiaomi Redmi 4A (`rolex`); antarmuka harus menyebut batas ini sebagai cakupan pemeriksaan, bukan menjadikan merek sebagai identitas seluruh aplikasi.
+DroidNow membantu memeriksa koneksi ADB/Fastboot, membaca informasi dasar perangkat, dan meninjau berkas lokal. Tujuan produk adalah diagnostik lintas seluruh model Xiaomi; deteksi koneksi Android tetap generik. Validasi awal baru mencakup Xiaomi Redmi 4A (`rolex`), sementara firmware dan pemulihan perlu diuji per model, SoC, dan region. UI harus memperlihatkan perbedaan antara tujuan luas dan cakupan yang benar-benar tervalidasi.
 
 Nada antarmuka profesional, langsung, dan mudah dipahami. Jelaskan tindakan serta batasnya dengan kata-kata sehari-hari. Hindari jargon milestone, promosi, klaim tanpa bukti, dan istilah yang menyiratkan dukungan model lebih luas daripada yang telah divalidasi.
 

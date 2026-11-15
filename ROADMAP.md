@@ -1,6 +1,6 @@
 # ROADMAP DroidNow
 
-**Fokus:** diagnosis dan servis perangkat Xiaomi secara aman, bertahap, dan fail-closed, dengan target awal Redmi 4A (`rolex`).
+**Tujuan produk:** membangun diagnostik yang mencakup seluruh model Xiaomi. Cakupan model, SoC, firmware, region, dan pemulihan harus dibuktikan satu per satu; Redmi 4A (`rolex`) hanya target validasi awal, bukan batas produk.
 
 **Prinsip utama:** DroidNow tidak menulis apa pun sebelum identitas perangkat, kecocokan firmware, status bootloader, dan risiko operasi dapat dibuktikan. Nilai `unknown`, konflik metadata, indeks rollback yang tidak terbaca, atau provenance yang tidak jelas berarti **berhenti atau read-only**, bukan asumsi aman.
 
@@ -39,7 +39,7 @@ Membangun batas dukungan yang dapat diaudit sebelum DroidNow menyentuh perangkat
 ### Pekerjaan
 
 - Definisikan matriks per **model, SKU, codename, hardware/region, varian, era firmware, Android, MIUI/HyperOS, mode bootloader/fastbootd, slot, AVB, dan ARB**.
-- Tetapkan Redmi 4A `rolex` sebagai target awal terbatas. Klaim komunitas bahwa rolex tidak memiliki ARB hanya hipotesis read-only, bukan jaminan [2].
+- Susun matriks untuk seluruh model Xiaomi dan mulai validasi terbatas pada Redmi 4A `rolex`; model ini contoh awal, bukan batas produk. Klaim komunitas bahwa rolex tidak memiliki ARB hanya hipotesis read-only, bukan jaminan [2].
 - Bangun katalog firmware dengan tipe paket, build, region, ukuran, SHA-256, URL sumber, tanggal, metadata rollback, status verifikasi, dan provenance.
 - Tetapkan stop condition: identitas konflik/tidak terbaca, paket tidak cocok, hash gagal, rollback tidak dapat dinilai, toolchain tidak stabil, interupsi, atau recovery memerlukan bypass.
 - Rancang schema arsip kasus: perangkat, operasi, bukti, keputusan gate, error, hasil, dan identifier yang dimasking.
@@ -55,7 +55,7 @@ Membangun batas dukungan yang dapat diaudit sebelum DroidNow menyentuh perangkat
 
 ### Kontrol risiko
 
-Fase ini harus menolak label region saja sebagai dasar kecocokan. Xiaomi mendokumentasikan relock setelah pemasangan paket MIUI resmi, tetapi tidak memberi matriks publik bahwa semua region resmi aman untuk semua hardware [3]. Tidak ada klaim dukungan universal.
+Tujuan cakupannya seluruh model Xiaomi, tetapi itu bukan klaim bahwa firmware atau pemulihan bersifat universal: setiap model/SKU/SoC/region tetap perlu bukti tersendiri. Xiaomi menyatakan ketersediaan update bersifat spesifik model dan region [15], dan jadwal resminya mencantumkan lini Xiaomi, REDMI, serta POCO dengan waktu ketersediaan yang dapat bervariasi [16]. Tolak label region saja sebagai dasar kecocokan. Xiaomi tidak menerbitkan matriks publik bahwa semua paket/region aman untuk semua hardware [3].
 
 ---
 
@@ -75,6 +75,7 @@ Mendapatkan gambaran perangkat secara read-only dan menyediakan wizard gejala.
   - **`super`/partisi gagal:** hentikan dan validasi mode serta image; jangan memakai raw partition, flashing EDL, atau bypass otorisasi.
   - **`This MIUI version can't be installed on this device`, `Erase is not allowed in Lock State`, `system has been destroyed`, atau loop Fastboot:** jangan force-flash; pilih firmware tepat atau eskalasi.
   - **Layar hitam/EDL saja:** deteksi Qualcomm 9008, jika tersedia, hanya sebagai pemeriksaan baca-saja. Pada sebagian perangkat ber-bootloader terkunci, Fastboot tidak menyediakan jalur flash normal; bila Android/Fastboot normal tidak dapat digunakan, EDL/test point dapat dipertimbangkan sebagai pemulihan terakhir melalui servis resmi/authorized. Jangan melakukan flashing EDL pada P0 atau memberi pin test point generik.
+  - **Rencana label mode darurat (baca-saja):** bila USB yang teramati menunjukkan `05c6:9008`, labeli sebagai Qualcomm QDL/EDL [17]. MediaTek BROM dan Preloader adalah label mode berbeda, bukan EDL. Berhenti pada mode/ID yang benar-benar teramati; jangan simpulkan otorisasi, ketersediaan programmer, atau kemampuan flash. Aplikasi saat ini belum mendeteksi atau memakai mode ini.
 - Minta baterai minimum konservatif, cegah suspend/sleep, dan tampilkan larangan mencabut kabel saat operasi kelak.
 
 ### Keluaran
@@ -326,6 +327,12 @@ Status akhir harus salah satu dari: **pulih dan terverifikasi**, **pulih tetapi 
 [13]: https://privacy.mi.com/support/faq?locale=en "Xiaomi Privacy Support FAQs"
 
 [14]: https://xdaforums.com/t/xiaomi-pad-6-pipa-hard-brick-locked-bootloader-region-mismatch-cn-hardware-global-rom.4781752/ "Xiaomi Pad 6 (pipa) - Hard Brick - Locked Bootloader - Region Mismatch (CN Hardware / Global ROM)"
+
+[15]: https://www.mi.com/global/support/faq/details/KA-483292/ "The REDMI Note 13 Pro+ 5G cannot get a Xiaomi HyperOS update"
+
+[16]: https://www.mi.com/global/hyperos "Xiaomi HyperOS release schedule and supported models"
+
+[17]: https://docs.qualcomm.com/bundle/publicresource/topics/80-70018-251/rb3_gen2_force_edl_mode.html "Force RB3 into emergency download mode (Qualcomm)"
 
 ### Sumber tambahan yang digunakan dalam riset tetapi tidak dijadikan dasar klaim universal
 
